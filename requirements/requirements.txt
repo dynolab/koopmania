@@ -1,0 +1,4 @@
+hydra-core
+matplotlib
+numpy
+pandas

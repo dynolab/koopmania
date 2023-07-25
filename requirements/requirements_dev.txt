@@ -1,0 +1,6 @@
+black[jupyter]
+mypy
+isort
+pylint
+jupyter
+notebook
