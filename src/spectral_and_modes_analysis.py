@@ -45,6 +45,7 @@ def check_fourier(time_series, train_ratio, m_freqs, plot=True):
         ax[1].set_xlabel('Freq')
         ax[1].set_ylabel('Amplitude')
         ax[1].set_xlim(0, 100)
+        ax[1].set_yscale('log')
         plt.suptitle("m_freqs={}, train_ratio={}".format(m_freqs, train_ratio))
         plt.show()
 
@@ -79,10 +80,11 @@ def plot_modes(T, time_series, model, num_modes=6, train_ratio=0.75, iterations=
     ax[0].set_xlabel('Time')
     real_spectrum = np.fft.fft(time_series)
     freq = np.arange(T)
-    ax[1].stem(freq, np.log(np.abs(real_spectrum)), 'b', markerfmt='bo', label='fft')
+    ax[1].stem(freq, np.abs(real_spectrum), 'b', markerfmt='bo', label='fft')
     ax[1].set_xlabel('Freq')
     ax[1].set_ylabel('Amplitude')
     ax[1].set_xlim(0, 100)
+    ax[1].set_ylabel('log')
     plt.suptitle("TS Prediction")
     plt.show()
 

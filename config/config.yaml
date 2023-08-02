@@ -1,0 +1,9 @@
+T: 1000
+m_freqs: 10
+num_modes: 5
+
+model: "koopman"
+# model ["fourier", "koopman", "coordinate_koopman"]
+
+function: "sine"
+# function ["sine", "sawtooth", "squares", "unit impulse"]

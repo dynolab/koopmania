@@ -355,10 +355,11 @@ class koopman(nn.Module):
                 ax[0].set_xlabel('Time')
                 spectrum = np.fft.fft(mode)
                 freq = np.arange(t.shape[0])
-                ax[1].stem(freq, np.log(np.abs(spectrum)), 'b', markerfmt='bo', label='fft')
+                ax[1].stem(freq, np.abs(spectrum), 'b', markerfmt='bo', label='fft')
                 ax[1].set_xlabel('Freq')
                 ax[1].set_ylabel('Amplitude')
                 ax[1].set_xlim(0, 100)
+                ax[1].set_yscale('log')
                 plt.suptitle(f'Koopman mode {i}')
                 plt.show()
 
