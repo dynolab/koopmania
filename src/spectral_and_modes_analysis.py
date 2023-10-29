@@ -52,7 +52,7 @@ def check_fourier(time_series, train_ratio, m_freqs, plot=True):
     return omega, amplitudes
 
 
-def plot_modes(T, time_series, model, num_modes=6, train_ratio=0.75, iterations=1000):
+def plot_modes(T, time_series, model, num_modes=6, train_ratio=0.75, iterations=1000, plot_n_last=None):
     '''
     Plot modes obtained by mode decomposition of given model in time and frequency domains
     :param T: TYPE int
@@ -66,6 +66,9 @@ def plot_modes(T, time_series, model, num_modes=6, train_ratio=0.75, iterations=
     proportion of data included in train set
     :param iterations: TYPE int
     number of iterations in model.fit
+    :param plot_n_last: TYPE int
+    default None
+    if not None, plot only last n steps in prediction
     :return: Graph of real and predicted time series in time domain
             Graph of fft spectrum of real time series
             n graphs of each mode both in time and frequency domains
@@ -73,19 +76,39 @@ def plot_modes(T, time_series, model, num_modes=6, train_ratio=0.75, iterations=
     model.fit(time_series[:int(T * train_ratio)].reshape(-1, 1), iterations=iterations)
     pred = model.predict(T)
 
-    fig, ax = plt.subplots(1, 2, figsize=(15, 5))
-    ax[0].plot(time_series, label='true_ts')
-    ax[0].plot(pred, label=f'{model.__class__.__name__}', linestyle='-.')
-    ax[0].legend()
-    ax[0].set_xlabel('Time')
-    real_spectrum = np.fft.fft(time_series)
-    freq = np.arange(T)
-    ax[1].stem(freq, np.abs(real_spectrum), 'b', markerfmt='bo', label='fft')
-    ax[1].set_xlabel('Freq')
-    ax[1].set_ylabel('Amplitude')
-    ax[1].set_xlim(0, 100)
-    ax[1].set_ylabel('log')
-    plt.suptitle("TS Prediction")
+    if plot_n_last is None:
+        plot_n_last = T
+    n_lim = max(0, T - plot_n_last)
+    t = np.arange(n_lim, T)
+    # fig, ax = plt.subplots(1, 2, figsize=(15, 5))
+    plt.plot(t, time_series[n_lim:], label='true_ts')
+    plt.plot(t, pred[n_lim:], label=f'{model.__class__.__name__}', linestyle='-.')
+    plt.legend()
+    plt.xlabel('Time')
+    
+    plt.title("TS Prediction")
     plt.show()
 
-    model.mode_decomposition(T, num_modes, plot=True)
+    plt.plot(t, time_series[n_lim:], label='true_ts')
+    model.mode_decomposition(T, num_modes, plot=True, plot_n_last=plot_n_last)
+
+def plot_modes_stochastic(T, time_series, time_series_mu, model, sigma_true=1.0, num_modes=6, train_ratio=0.75, iterations=1000, plot_n_last=None):
+    model.fit(time_series[:int(T * train_ratio)].reshape(-1, 1),  weight_decay=1e-7, lr_theta=1e-3, lr_omega=1e-4, iterations=iterations)
+    pred = model.predict(T)
+
+    if plot_n_last is None:
+        plot_n_last = T
+    n_lim = max(0, T - plot_n_last)
+    t = np.arange(n_lim, T)
+    # fig, ax = plt.subplots(1, 2, figsize=(15, 5))
+    plt.plot(t, time_series[n_lim:], "r", label='ts with noise')
+    plt.plot(t, time_series_mu[n_lim:], "b", label='$\\mu$')
+    plt.plot(t, pred[0][n_lim:], "--k", label="$\hat \\mu$")
+    plt.plot(t, np.ones(t.shape) * sigma_true, "orange", label='$\\sigma$')
+    plt.plot(t, pred[1][n_lim:], ":k", label="$\hat \\sigma$")
+    plt.legend()
+    plt.xlabel('Time')
+    plt.show()
+
+    # plt.plot(t, time_series[n_lim:], label='true_ts')
+    model.mode_decomposition(T, num_modes, plot=True, plot_n_last=plot_n_last)

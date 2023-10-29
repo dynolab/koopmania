@@ -8,6 +8,7 @@ from src.koopman import koopman, coordinate_koopman, fully_connected_mse, multi_
 from src.fourier import fourier
 from src.quasi_periodic_data import gen_sine, gen_sawtooth, gen_squares, gen_unit_impulse
 
+
 np.random.seed(42)
 
 path = os.getcwd()
@@ -22,6 +23,7 @@ functions = {"sine": gen_sine, "sawtooth": gen_sawtooth, "squares": gen_squares,
 method = cfg["model"]
 
 time_series = functions[cfg["function"]](T)
+print(cfg["function"])
 if method == "fourier":
     model = fourier(num_freqs=m_freqs)
 elif method == "koopman":
@@ -29,4 +31,4 @@ elif method == "koopman":
 elif method == "coordinate_koopman":
     model = coordinate_koopman(multi_nn_mse(x_dim=1, num_freqs=m_freqs, base_model=fully_connected_mse(x_dim=1, num_freqs=1, n=64)), device='cpu')
 
-plot_modes(T, time_series, model)
+plot_modes(T, time_series, model, plot_n_last=10)

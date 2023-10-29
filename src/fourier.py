@@ -178,7 +178,7 @@ class fourier:
 
         return np.dot(Omega, self.A)
 
-    def mode_decomposition(self, T, n_modes, plot=False):
+    def mode_decomposition(self, T, n_modes, plot=False, plot_n_last=None):
         '''
         Returns first n modes of prediction built by Fourier algorithm
         :param T: TYPE int
@@ -187,13 +187,19 @@ class fourier:
         number of modes to return
         :param plot: TYPE bool
         whether to build a plot
+        :param plot_n_last: TYPE int
+        default None
+        if not None, plot only last n steps in prediction
         :return: TYPE list[np.array]
         size n_modes[(T,)]
 
         '''
 
-        t = np.linspace(0, 1, T)
-        idxs = np.argsort(-self.A.flatten())
+        if plot_n_last is None:
+            plot_n_last = T
+        n_lim = max(0, T - plot_n_last)
+        t = np.arange(n_lim, T)
+        idxs = np.argsort(-np.abs(self.A.flatten()))
         arg = t[:, None] * self.freqs[None, :]
         freqs = np.concatenate([np.cos(2 * np.pi * arg * 1000), np.sin(2 * np.pi * arg * 1000)], axis=-1)
         modes = []
@@ -201,15 +207,18 @@ class fourier:
             mode = freqs[:, idxs[i]]
             modes.append(mode)
             if plot:
-                fig, ax = plt.subplots(1, 2, figsize=(15, 5))
-                ax[0].plot(mode)
-                ax[0].set_xlabel('Time')
-                spectrum = np.fft.fft(mode)
-                freq = np.arange(t.shape[0])
-                ax[1].stem(freq, np.log(np.abs(spectrum)), 'b', markerfmt='bo', label='fft')
-                ax[1].set_xlabel('Freq')
-                ax[1].set_ylabel('Amplitude')
-                ax[1].set_xlim(0, 100)
-                plt.suptitle(f'Fourier mode {i}')
-                plt.show()
+                # fig, ax = plt.subplots(1, 2, figsize=(15, 5))
+                plt.plot(mode, label="Mode {}".format(i+1))
+                # ax[0].set_xlabel('Time')
+                # spectrum = np.fft.fft(mode)
+                # freq = np.arange(t.shape[0])
+                # ax[1].stem(freq, np.log(np.abs(spectrum)), 'b', markerfmt='bo', label='fft')
+                # ax[1].set_xlabel('Freq')
+                # ax[1].set_ylabel('Amplitude')
+                # ax[1].set_xlim(0, 100)
+                # plt.suptitle(f'Fourier mode {i}')
+        plt.xlabel('Time')
+        plt.ylabel('x')
+        plt.legend()
+        plt.show()
         return modes

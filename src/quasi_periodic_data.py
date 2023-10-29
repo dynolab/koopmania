@@ -60,19 +60,21 @@ def gen_squares(T, freq=5):
     return time_series
 
 
-def gen_unit_impulse(T, n_repeats=5):
+def gen_unit_impulse(T, n_repeats=None):
     '''
     Generate unit impulse signal of given size with given number of repeats
     :param T: TYPE int
     length of a signal
     :param n_repeats: TYPE int
     number of peaks
-    default 5
+    default None
+    if None, use T//100
     :return: TYPE np.array
     size (T,)
 
     '''
-
+    if n_repeats is None:
+        n_repeats = T // 100
     n, exc = divmod(T, n_repeats)
     impulse = signal.unit_impulse(n, np.random.randint(exc, n))
     time_series = np.tile(impulse, n_repeats)
@@ -104,4 +106,39 @@ def gen_wavelet(wavelet_name, n_repeats=5):
 
 
     return time_series
+
+# stochastic signals
+
+def periodic_normal(T, n_freqs=5):
+    mu = np.zeros(T)
+    sigma = np.zeros(T)
+    t = np.arange(T).astype(float)
+    for i in range(n_freqs):
+        A1, w1, A2, w2 = np.random.uniform(0, 10, size=4)
+        phi1, phi2 = np.random.uniform(0, np.pi, size=2)
+        mu += A1 * np.sin(2 * np.pi * w1 * t + phi1)
+        sigma += np.exp(A2 * np.sin(2 * np.pi * w2 * t + phi2))
+
+    time_series = np.random.normal(mu, sigma).reshape(-1, 1)
+    return time_series
+
+def periodic_gamma(T, n_freqs=5):
+    alpha = np.zeros(T)
+    scale = np.zeros(T)
+    t = np.arange(T).astype(float)
+    for i in range(n_freqs):
+        A1, w1, A2, w2 = np.random.uniform(0, 10, size=4)
+        phi1, phi2 = np.random.uniform(0, np.pi, size=2)
+        alpha += np.exp(A1 * np.sin(2 * np.pi * w1 * t + phi1))
+        scale += np.exp(A2 * np.sin(2 * np.pi * w2 * t + phi2))
+
+    time_series = np.random.gamma(alpha, scale=scale).reshape(-1, 1)
+    return time_series
+
+def add_gaus_noise(time_series, sigma=1):
+    T = time_series.shape[0]
+    new_ts = time_series + np.random.normal(0, sigma, size=T)
+    return new_ts
+
+
 

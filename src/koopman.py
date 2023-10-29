@@ -322,7 +322,7 @@ class koopman(nn.Module):
 
         return mu.cpu().detach().numpy()
     
-    def mode_decomposition(self, T, n_modes, plot=False):
+    def mode_decomposition(self, T, n_modes, plot=False, plot_n_last=None):
         '''
         Returns first n modes of prediction built by Koopman algorithm
         :param T: TYPE int
@@ -332,12 +332,19 @@ class koopman(nn.Module):
         :param plot: TYPE bool
         whether to build a plot
         The default is False
+        :param plot_n_last: TYPE int
+        default None
+        if not None, plot only last n steps in prediction
         :return: TYPE np.array
         size (T, n_modes)
 
         '''
+        if plot_n_last is None:
+            plot_n_last = T
+        n_lim = max(0, T - plot_n_last)
+        t = torch.arange(n_lim, T, device=self.device) + 1
 
-        t = torch.arange(T, device=self.device) + 1
+        # t = torch.arange(T, device=self.device) + 1
         ts_ = torch.unsqueeze(t, -1).type(torch.get_default_dtype())
 
         o = torch.unsqueeze(self.omegas, 0)
@@ -346,21 +353,13 @@ class koopman(nn.Module):
         modes = self.model_obj.get_modes(k)
 
         amps = self.model_obj.get_amplitudes()
-        idxs = torch.argsort(-amps)
+        idxs = torch.argsort(-amps.abs())
         for i in range(n_modes):
             mode = modes[:, idxs[i]].detach().numpy()
             if plot:
-                fig, ax = plt.subplots(1, 2, figsize=(15, 5))
-                ax[0].plot(mode)
-                ax[0].set_xlabel('Time')
-                spectrum = np.fft.fft(mode)
-                freq = np.arange(t.shape[0])
-                ax[1].stem(freq, np.abs(spectrum), 'b', markerfmt='bo', label='fft')
-                ax[1].set_xlabel('Freq')
-                ax[1].set_ylabel('Amplitude')
-                ax[1].set_xlim(0, 100)
-                ax[1].set_yscale('log')
-                plt.suptitle(f'Koopman mode {i}')
+                plt.plot(mode)
+                plt.xlabel('Time')
+                plt.title(f'Koopman mode {i}')
                 plt.show()
 
         return modes[:, idxs[:n_modes]].detach().numpy()
@@ -399,7 +398,7 @@ class coordinate_koopman(koopman):
         opts = []
         for i in range(self.num_freq):
             opt = optim.SGD(self.model_obj.networks[i].parameters(), lr=3e-3,
-                            weight_decay=0.001 * self.omegas[i].float())
+                            weight_decay=0.0005 / (self.omegas[i].float()*T + 1).log() + 1e-8)
             opts.append(opt)
         opt_mlp = optim.SGD(self.model_obj.mlp.parameters(), lr=3e-3)
         opt_omega = optim.SGD([omega], lr=1e-7 / T)
@@ -419,7 +418,7 @@ class coordinate_koopman(koopman):
             wt = ts_ * o
 
             k = torch.cat([torch.cos(wt), torch.sin(wt)], -1)
-            loss = torch.mean(self.model_obj(k, xt_t))
+            loss = torch.mean(self.model_obj(k, xt_t)) + (omega.abs()).mean()
 
             for opt in opts:
                 opt.zero_grad()
@@ -441,6 +440,47 @@ class coordinate_koopman(koopman):
         self.omegas = omega.data
 
         return np.mean(losses)
+
+    def MAE(self, x, x_hat):
+        assert len(x) == len(x_hat)
+        return np.sum(np.abs(x - x_hat)) / len(x)
+
+    def MAPE(self, x, x_hat):
+        assert len(x) == len(x_hat)
+        return np.mean(np.abs((x - x_hat) / x))
+
+    def validate(self, val_data, train_through, horizon, metric="MAPE"):
+        total_pred = self.predict(train_through + horizon)
+        val_pred = total_pred[train_through:]
+        if metric == "MAPE":
+            return self.MAPE(val_data, val_pred)
+        elif metric == "MAE":
+            return self.MAE(val_data, val_pred)
+
+def train(xt, train_through, horizon, freqs_list=None, metric="MAPE"):
+    T = xt.shape[0]
+    x_dim = xt.shape[1]
+    x_train = xt[:train_through].reshape(-1,1)
+    x_val = xt[train_through:train_through+horizon].reshape(-1,1)
+    best_m = 1
+    best_metric = np.inf
+    metrics = []
+    if freqs_list is None:
+        m_freqs = np.arange(1, 11)
+    for m in m_freqs:
+        model = coordinate_koopman(multi_nn_mse(x_dim, m, fully_connected_mse(x_dim=1, num_freqs=1, n=64)), device='cpu')
+        model.fit(x_train, iterations = 300)
+        cur_metric = model.validate(x_val, train_through, horizon, metric=metric)
+        metrics.append(cur_metric)
+        if cur_metric < best_metric:
+            best_m = m
+
+    final_model =  coordinate_koopman(multi_nn_mse(x_dim, best_m, fully_connected_mse(x_dim=1, num_freqs=1, n=64)), device='cpu')
+    final_model.fit(xt.reshape(-1, 1), iterations=1000)
+    return final_model, best_m, metrics
+
+
+
     
 
 class model_object(nn.Module):
@@ -559,6 +599,7 @@ class multi_nn_mse(model_object):
         y = []
         for i in range(self.num_freq):
             y.append(self.networks[i].get_modes(torch.index_select(x, -2, torch.tensor([i]))))
+            # print(y[-1].shape)
         y = torch.cat(y, -2)
         y = self.mlp(y.flatten(-2))
         return y
@@ -569,9 +610,8 @@ class multi_nn_mse(model_object):
 
 
 class observables_lib(model_object):
-    def __init__(self, num_freq, x_dim, hidden_dim, latent_dim, num_sins, num_poly, num_exp, num_layers):
+    def __init__(self, num_freq, x_dim, hidden_dim, latent_dim, num_poly, num_exp, num_layers):
         super(observables_lib, self).__init__(num_freq)
-        self.num_sins = num_sins
         self.num_poly = num_poly
         self.num_exp = num_exp
         self.latent_dim = latent_dim
@@ -581,7 +621,7 @@ class observables_lib(model_object):
         model += [nn.Linear(x_dim * num_freq * 2, hidden_dim), nn.ReLU()]
         for _ in range(num_layers - 2):
             model += [nn.Linear(hidden_dim, hidden_dim), nn.ReLU()]
-        model += [nn.Linear(hidden_dim, (self.latent_dim + self.num_sins * 2) * num_freq * 2 * x_dim)]
+        model += [nn.Linear(hidden_dim, self.latent_dim  * num_freq * 2 * x_dim)]
 
         self.model = nn.Sequential(*model)
 
@@ -591,9 +631,9 @@ class observables_lib(model_object):
         if len(x.shape) == 2:
             x = x.view(x.shape[0], 1, x.shape[1])
         encoder_out = self.model(x)
-        encoder_out = encoder_out.reshape(x.shape[0], x.shape[1], (self.latent_dim + self.num_sins * 2),
+        encoder_out = encoder_out.reshape(x.shape[0], x.shape[1], self.latent_dim,
                                           self.num_freq * 2 * self.x_dim)
-        encoder_out = encoder_out.reshape(x.shape[0], x.shape[1], (self.latent_dim + self.num_sins * 2),
+        encoder_out = encoder_out.reshape(x.shape[0], x.shape[1], self.latent_dim,
                                           self.num_freq * 2, self.x_dim)
         x = x.reshape(x.shape[0], x.shape[1], self.num_freq * 2, self.x_dim)
         coefs = torch.einsum("blkdf, bldf -> blfk", encoder_out, x)
@@ -605,13 +645,8 @@ class observables_lib(model_object):
             for i in range(self.num_poly, self.num_poly + self.num_exp):
                 embedding[:, :, f, i] = torch.exp(coefs[:, :, f, i])
 
-            for i in range(self.num_poly + self.num_exp, self.num_poly + self.num_exp + self.num_sins):
-                embedding[:, :, f, i] = coefs[:, :, f, self.num_sins * 2 + i] * torch.cos(coefs[:, :, f, i])
-                embedding[:, :, f, self.num_sins + i] = coefs[:, :, f, self.num_sins * 3 + i] * torch.sin(
-                    coefs[:, :, f, self.num_sins + i])
-
-            embedding[:, :, f, self.num_poly + self.num_exp + self.num_sins * 2:] = coefs[:, :, f,
-                                                                                    self.num_poly + self.num_exp + self.num_sins * 4:]
+            embedding[:, :, f, self.num_poly + self.num_exp:] = coefs[:, :, f,
+                                                                self.num_poly + self.num_exp:]
 
         embedding = embedding.reshape(embedding.shape[0], embedding.shape[1], -1)
         # print('emb', embedding.shape)
@@ -624,3 +659,5 @@ class observables_lib(model_object):
             xhat = xhat.flatten(-2)
         # print(xhat.shape, x.shape, 'shapes')
         return torch.mean((xhat - x) ** 2, dim=-1)
+
+
