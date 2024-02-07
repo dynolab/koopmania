@@ -45,7 +45,7 @@ elif method == "koopman":
     model = koopman(
         fully_connected_mse(x_dim=1, num_freqs=m_freqs, n=512), device="cpu"
     )
-elif method == "coordinate_koopman":
+elif method == "coordinate_koopman.yaml":
     model = coordinate_koopman(
         multi_nn_mse(
             x_dim=1,

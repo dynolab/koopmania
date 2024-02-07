@@ -41,7 +41,7 @@ time_series = functions[cfg["function"]](T) + 2
 plt.plot(time_series)
 plt.show()
 
-# model_k = coordinate_koopman(multi_nn_mse(1, num_freqs, fully_connected_mse(x_dim=1, num_freqs=1, n=64)), num_freqs,
+# model_k = coordinate_koopman.yaml(multi_nn_mse(1, num_freqs, fully_connected_mse(x_dim=1, num_freqs=1, n=64)), num_freqs,
 #                              device='cpu')
 model_k = koopman(
     fully_connected_mse(x_dim=1, num_freqs=num_freqs, n=512), 5, device="cpu"
