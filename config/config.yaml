@@ -1,18 +1,19 @@
 defaults:
   - _self_
   - user_settings: user_settings
-  - model: DMD
+  - model: fourier
   - dataset: navier_stokes
 
 render_path: ${user_settings.project_path}/render
 save_path: ${user_settings.project_path}/plots
 datasets_root: ${user_settings.datasets_root}
 #
-T: 10.0
-delta_t: 0.1
+T: 1000.0
+delta_t: 1
 
-y_window: 300
+y_window: 10
 
 seed: 321
 
 plot: True
+sample_plot:

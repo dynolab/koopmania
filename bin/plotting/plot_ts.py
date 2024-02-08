@@ -1,19 +1,19 @@
-import numpy as np
-from numpy.typing import NDArray
-import matplotlib.pyplot as plt
 from typing import Optional
 
+import matplotlib.pyplot as plt
+import numpy as np
+from numpy.typing import NDArray
 from omegaconf.dictconfig import DictConfig
 
 
 def plot_forecast(
     t: NDArray,
     time_series: NDArray,
-    reconstr_ts: list[NDArray],
-    pred_ts: list[NDArray],
+    reconstr_ts: NDArray,
+    pred_ts: NDArray,
     model: str,
     y_window: int,
-    metric: list[NDArray],
+    metric: NDArray,
     metric_name: str,
     save: Optional[DictConfig],
     show: Optional,
@@ -23,7 +23,7 @@ def plot_forecast(
         sample_idx = np.random.randint(0, pred_ts.shape[1], sample)
         iterator = sample_idx
     else:
-        iterator = range(len(pred_ts))
+        iterator = range(pred_ts.shape[1])
     for i in iterator:
         plt.plot(t, time_series[:, i], label="original ts", color="blue")
         plt.plot(t[:-y_window], reconstr_ts[:, i], label=model, color="red")

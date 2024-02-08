@@ -2,7 +2,7 @@ hydra-core
 matplotlib
 numpy
 pandas
+pywavelets
 scipy
 torch
-pywavelets
 

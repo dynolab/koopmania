@@ -1,14 +1,13 @@
-from PIL import Image
 import numpy as np
-import hydra
-from omegaconf.dictconfig import DictConfig
+from PIL import Image
 
 
 def render_env(T, ds, render_path, save_path, name: str):
     frames = []
-    length = int(T) // ds
-    for frame_number in np.arange(length):
-        frame = Image.open(rf"{render_path}\plot_{frame_number}.png")
+    for frame_number in np.arange(0, T, ds):
+        frame = Image.open(
+            rf"{render_path}\plot_{round(frame_number, 1)}".replace(".", ",") + ".png"
+        )
         frames.append(frame)
 
     frames[0].save(
