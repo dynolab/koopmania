@@ -1,0 +1,14 @@
+_target_: src.models.koopman.koopman
+_recursive_: true
+name: koopman
+model_obj:
+  _target_: src.models.model_objs.model_objs.fully_connected_mse
+  x_dim: ${dataset.x_dim}
+  num_freqs: 10
+  n: 512
+sample_num: 12
+weight_decay: 0.00
+lr_theta: 3e-3
+lr_omega: 1e-7
+hard_code_periods:
+iterations: 200

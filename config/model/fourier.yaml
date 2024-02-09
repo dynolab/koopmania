@@ -1,0 +1,7 @@
+_target_: src.models.fourier.fourier
+name: fourier
+num_freqs: 10
+device: cpu
+learning_rate: 1e-5
+iterations: 1000
+verbose: False

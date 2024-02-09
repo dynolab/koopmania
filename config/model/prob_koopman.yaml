@@ -1,0 +1,20 @@
+_target_: src.models.koopman_probabilistic.KoopmanProb
+_recursive_: true
+
+name: prob_koopman
+
+model_obj:
+  _target_: src.models.model_objs.prob_model_objs.NormalNLL
+  x_dim: ${dataset.x_dim}
+  num_freqs:
+    - 10
+    - 1
+  n: 256
+  n2: 64
+sample_num: 12
+seed: ${seed}
+weight_decay: 0.003
+lr_theta: 3e-3
+lr_omega: 3e-6
+hard_code_periods:
+iterations: 800
