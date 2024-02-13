@@ -503,9 +503,9 @@ class KoopmanProb(nn.Module):
             xhat from 0 to T.
 
         """
-        step = t[1] - t[0]
+        t0 = t[0]
 
-        t = torch.tensor(t / step, device=self.device)
+        t = torch.tensor(torch.arange(t0, t0 + len(t)), device=self.device) + 1
         ts_ = torch.unsqueeze(t, -1).type(torch.get_default_dtype())
 
         o = torch.unsqueeze(self.omegas, 0)
@@ -520,9 +520,9 @@ class KoopmanProb(nn.Module):
 
         return (
             params[0].cpu().detach().numpy()
-        )  # tuple(param.cpu().detach().numpy() for param in params)
+        )  
 
-    def mode_decomposition(self, T, n_modes, plot=False, plot_n_last=None):
+    def mode_decomposition(self, T, n_modes, x_0, plot=False, plot_n_last=None):
         """
         Returns first n modes of prediction built by Koopman algorithm
         :param T: TYPE int
@@ -553,28 +553,47 @@ class KoopmanProb(nn.Module):
         modes = self.model_obj.get_modes(k)
 
         amps = self.model_obj.get_amplitudes()
-        for j in range(len(modes)):
-            idxs = torch.argsort(-amps[j].abs())
-            for i in range(n_modes):
-                mode = modes[j][:, idxs[i]].detach().numpy()
-                if plot:
-                    plt.plot(mode)
-                    plt.xlabel("Time")
-                    plt.title(f"param {j}, Koopman mode {i}")
-                    plt.show()
+        for k in range(3):
+            for j in range(len(modes)):
+                idxs = torch.argsort(-amps[j].abs(), dim=-1)
+                for i in range(n_modes):
+                    mode = modes[j][:, idxs[i, k]].detach().numpy()
+                    if plot:
+                        plt.plot(mode)
+                        plt.xlabel("Time")
+                        plt.title(f"param {j}, Koopman mode {i} at dim {k}")
+                        plt.show()
 
         return [mode[:, idxs[:n_modes]].detach().numpy() for mode in modes]
 
 
 class CoordinateKoopmanProb(KoopmanProb):
     def __init__(
-        self, model_obj, sample_num=12, seed=None, l1_coef=0, l2_coef=0, **kwargs
+        self,
+        name: str,
+        model_obj,
+        sample_num=12,
+        seed=None,
+        iterations=20,
+        interval=10,
+        cutoff=0,
+        weight_decay=0,
+        verbose=False,
+        lr_theta=1e-4,
+        lr_omega=0,
+        hard_code=None,
+        l1_coef=0,
+        l2_coef=0,
+        **kwargs,
     ):
         super(CoordinateKoopmanProb, self).__init__(
             model_obj, sample_num=12, seed=None, **kwargs
         )
+        self.name = name
         self.l1_coef = l1_coef
         self.l2_coef = l2_coef
+        self.sample_num = sample_num
+        self.seed = seed
 
     def sgd(
         self,

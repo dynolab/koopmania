@@ -194,7 +194,8 @@ class fourier:
             xhat from 0 to T.
 
         """
-
+        t0 = int(t[0] / (t[1] - t[0]))
+        t = np.arange(t0, t0 + len(t))
         t = np.expand_dims(t, -1)
         Omega = np.concatenate(
             [np.cos(t * 2 * np.pi * self.freqs), np.sin(t * 2 * np.pi * self.freqs)], -1
@@ -233,16 +234,7 @@ class fourier:
             mode = freqs[:, idxs[i]]
             modes.append(mode)
             if plot:
-                # fig, ax = plt.subplots(1, 2, figsize=(15, 5))
                 plt.plot(mode, label="Mode {}".format(i + 1))
-                # ax[0].set_xlabel('Time')
-                # spectrum = np.fft.fft(mode)
-                # freq = np.arange(t.shape[0])
-                # ax[1].stem(freq, np.log(np.abs(spectrum)), 'b', markerfmt='bo', label='fft')
-                # ax[1].set_xlabel('Freq')
-                # ax[1].set_ylabel('Amplitude')
-                # ax[1].set_xlim(0, 100)
-                # plt.suptitle(f'Fourier mode {i}')
         plt.xlabel("Time")
         plt.ylabel("x")
         plt.legend()

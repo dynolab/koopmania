@@ -166,7 +166,7 @@ class koopman(nn.Module):
 
         return E, E_ft
 
-    def fft(self, xt, i, verbose=False):
+    def fft(self, xt, i):
         """
 
         fft first samples all temporaly local losses within the first period
@@ -204,9 +204,6 @@ class koopman(nn.Module):
                 np.abs(2 * np.pi / omegas_actual - 1 / omegas[idxs[j]]) > 1
             ):
                 found = True
-                if verbose:
-                    print(omegas[idxs[j]])
-                    print("Setting ", i, "to", 1 / omegas[idxs[j]])
                 self.omegas[i] = torch.from_numpy(np.array([omegas[idxs[j]]]))
                 self.omegas[i] *= 2 * np.pi
 
@@ -274,16 +271,13 @@ class koopman(nn.Module):
 
             losses.append(loss.cpu().detach().numpy())
 
-        if verbose:
-            print("Setting to", 2 * np.pi / omega)
-
         self.omegas = omega.data
 
         return np.mean(losses)
 
     def fit(self, xt):
         """
-        Given a dataset, this function alternatingly optimizes omega and
+        Given a dataset, this function alternatively optimizes omega and
         parameters of f. Specifically, the algorithm performs interval many
         epochs, then updates all entries in omega. This process is repeated
         until iterations-many epochs have been performed
@@ -320,11 +314,11 @@ class koopman(nn.Module):
         for i in range(self.iterations):
             if i % self.interval == 0 and i < self.cutoff:
                 for k in range(self.num_freq - len(hard_coded_omegas)):
-                    self.fft(xt, k, verbose=self.verbose)
+                    self.fft(xt, k)
 
             if self.verbose:
                 print("Iteration ", i)
-                print(2 * np.pi / self.omegas)
+                print("Omegas: ", 2 * np.pi / self.omegas)
 
             l = self.sgd(xt, verbose=self.verbose)
             if self.verbose:
@@ -348,11 +342,9 @@ class koopman(nn.Module):
             xhat from 0 to T.
 
         """
-        # T = len(t)
-        step = t[1] - t[0]
+        t0 = int(t[0] / (t[1] - t[0]))
 
-        # t = torch.arange(round(t[0]/step), round(t[-1] / step), device=self.device) + 1
-        t = torch.tensor(t / step, device=self.device)
+        t = torch.tensor(torch.arange(t0, t0 + len(t)), device=self.device)
         ts_ = torch.unsqueeze(t, -1).type(torch.get_default_dtype())
 
         o = torch.unsqueeze(self.omegas, 0)
@@ -365,7 +357,7 @@ class koopman(nn.Module):
 
         return mu.cpu().detach().numpy()
 
-    def mode_decomposition(self, T, n_modes, plot=False, plot_n_last=None):
+    def mode_decomposition(self, T, n_modes, x0, plot=False, plot_n_last=None):
         """
         Returns first n modes of prediction built by Koopman algorithm
         :param T: TYPE int
@@ -387,7 +379,6 @@ class koopman(nn.Module):
         n_lim = max(0, T - plot_n_last)
         t = torch.arange(n_lim, T, device=self.device) + 1
 
-        # t = torch.arange(T, device=self.device) + 1
         ts_ = torch.unsqueeze(t, -1).type(torch.get_default_dtype())
 
         o = torch.unsqueeze(self.omegas, 0)
@@ -396,14 +387,15 @@ class koopman(nn.Module):
         modes = self.model_obj.get_modes(k)
 
         amps = self.model_obj.get_amplitudes()
-        idxs = torch.argsort(-amps.abs())
-        for i in range(n_modes):
-            mode = modes[:, idxs[i]].detach().numpy()
-            if plot:
-                plt.plot(mode)
-                plt.xlabel("Time")
-                plt.title(f"Koopman mode {i}")
-                plt.show()
+        idxs = torch.argsort(-amps.abs(), dim=-1)
+        for j in range(3):
+            for i in range(n_modes):
+                mode = modes[:, idxs[i, j]].detach().numpy()
+                if plot:
+                    plt.plot(mode)
+                    plt.xlabel("Time")
+                    plt.title(f"Koopman mode {i} at dim {j}")
+                    plt.show()
 
         return modes[:, idxs[:n_modes]].detach().numpy()
 

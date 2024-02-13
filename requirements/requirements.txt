@@ -3,6 +3,7 @@ matplotlib
 numpy
 pandas
 pywavelets
+scikit-learn
 scipy
 torch
 

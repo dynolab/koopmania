@@ -1,4 +1,6 @@
 import numpy as np
+import matplotlib.pyplot as plt
+import torch
 
 
 class DMD:
@@ -33,12 +35,50 @@ class DMD:
     def predict(self, t, x0):
         m = x0.shape[0]
         sgm = np.diag(self.Lambda)
-        t = t - np.min(t)
-        omega = np.log(sgm) / (t[1] - t[0])
         b = np.dot(np.linalg.pinv(self.Psi), x0)
 
         t_dyn = np.zeros((m, t.shape[0]))
-        for i in range(t.shape[0]):
-            t_dyn[:, i] = self.Psi * np.exp(omega * t[i]) @ b
+        t_dyn[:, 0] = x0
+        for i in range(1, t.shape[0]):
+            t_dyn[:, i] = self.Psi * (sgm ** (i - 1)) @ b
 
         return np.transpose(t_dyn)
+
+    def mode_decomposition(self, T, n_modes, x0, plot=False, plot_n_last=None):
+        modes = self.Psi[:, :n_modes]
+        for j in range(3):
+            for i in range(n_modes):
+                mode = modes[j : j + 1, i : i + 1]
+
+                print(np.diag(self.Lambda).shape)
+                sgm = np.diag(self.Lambda)[i]
+                b = np.dot(np.linalg.pinv(mode), x0[j])
+
+                t_dyn = np.zeros((1, T))
+                t_dyn[:, 0] = x0[j]
+                for k in range(1, T):
+                    t_dyn[:, k] = mode * (sgm ** (k - 1)) @ b
+                if plot:
+                    print(t_dyn.shape)
+                    plt.plot(t_dyn[0])
+                    plt.xlabel("Time")
+                    plt.title(f"DMD mode {i} at dim {j}")
+                    plt.show()
+
+        return modes
+        # for i in range(DM.shape[2]):
+        #     plt.imshow(DM[:, :, i].real, cmap="jet")
+        #     plt.colorbar()
+        #     plt.title("Mode {}, real part".format(i))
+        #     plt.savefig(
+        #         rf"C:\Users\mWX1298408\Documents\koopman_plots\Mode_{i}_real.png"
+        #     )
+        #     plt.show()
+        #
+        #     plt.imshow(DM[:, :, i].imag, cmap="jet")
+        #     plt.colorbar()
+        #     plt.title("Mode {}, imaginary part".format(i))
+        #     plt.savefig(
+        #         rf"C:\Users\mWX1298408\Documents\koopman_plots\Mode_{i}_imag.png"
+        #     )
+        #     plt.show()

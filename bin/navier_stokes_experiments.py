@@ -4,18 +4,11 @@ from hydra.utils import instantiate
 
 from bin.plotting.plot_ts import plot_forecast
 from src.utils.common import get_config_path, split
+from sklearn.metrics import mean_absolute_percentage_error as MAPE
+from bin.plotting.render_env import render_env
 
 CONFIG_NAME = "config"
 np.random.seed(421)
-
-
-def MAPE(x, x_hat):
-    assert len(x) == len(x_hat)
-    x_c = x.copy()
-    x_hat_c = x_hat.copy()
-    x_c += 1
-    x_hat_c += 1
-    return np.mean(np.abs((x_c - x_hat_c) / (x_c + 1e-6)), axis=0)
 
 
 def main(cfg):
@@ -26,14 +19,19 @@ def main(cfg):
     model = instantiate(cfg.model)
     model.fit(x_train)
     x_0 = time_series[0]
-
+    print(model.mode_decomposition(1000, 3, x_0, plot=True))
     reconstr_ts = model.predict(t_train, x_0)
     x_1 = x_test[0]
     pred_ts = model.predict(t_test, x_1)
 
     mape = MAPE(x_test, pred_ts)
     print("MAPE:", np.mean(mape))
-    if cfg.plot:
+    # with open("stats_k.csv", "a") as f:
+    #     f.write(f"{x_test.shape[1]}")
+    #     f.write(" ")
+    #     f.write(f"{np.mean(mape)}")
+    #     f.write("\n")
+    if cfg.plotting.plot:
         plot_forecast(
             t,
             time_series,
@@ -43,10 +41,12 @@ def main(cfg):
             y_window=cfg.y_window,
             metric=mape,
             metric_name="MAPE",
-            save=None,
-            sample=cfg.sample_plot,
+            save=cfg.plotting.save,
+            n_plots=cfg.plotting.n_plots,
             show=True,
         )
+
+    # render_env(cfg.T, cfg.delta_t, cfg.render_path, cfg.save_path, "ns_view_fast")
 
 
 if __name__ == "__main__":

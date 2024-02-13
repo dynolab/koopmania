@@ -4,10 +4,8 @@ from PIL import Image
 
 def render_env(T, ds, render_path, save_path, name: str):
     frames = []
-    for frame_number in np.arange(0, T, ds):
-        frame = Image.open(
-            rf"{render_path}\plot_{round(frame_number, 1)}".replace(".", ",") + ".png"
-        )
+    for frame_number in np.arange(0, T):
+        frame = Image.open(rf"{render_path}\plot_{frame_number}" + ".png")
         frames.append(frame)
 
     frames[0].save(
@@ -15,6 +13,6 @@ def render_env(T, ds, render_path, save_path, name: str):
         save_all=True,
         append_images=frames[1:],
         optimize=True,
-        duration=50,
+        duration=20,
         loop=0,
     )

@@ -79,16 +79,15 @@ class fully_connected_mse(model_object):
         return o3
 
     def get_amplitudes(self):
-        return self.state_dict()["amplitudes.weight"].flatten()
+        return self.state_dict()["amplitudes.weight"]
 
     def decode(self, x):
         o0 = x
         o1 = nn.Tanh()(self.l1(o0))
         o2 = nn.Tanh()(self.l2(o1))
-        o21 = nn.Tanh()(self.l21(o2))
-        o3 = self.l3(o21)
+        o3 = self.l3(o2)
         o4 = self.amplitudes(o3)
-        return o3
+        return o4
 
     def forward(self, y, x):
         xhat = self.decode(y)
@@ -102,7 +101,7 @@ class multi_nn_mse(model_object):
         for i in range(num_freqs):
             model = deepcopy(base_model)
             self.networks.append(model)
-        self.mlp = nn.Linear(2 * num_freqs, x_dim)
+        self.mlp = nn.Linear(2 * num_freqs, x_dim, bias=False)
 
     def get_modes(self, x):
         x = x.reshape(*x.shape[:-1], 2, -1).transpose(-2, -1)
@@ -113,7 +112,7 @@ class multi_nn_mse(model_object):
         return y
 
     def get_amplitudes(self):
-        return self.mlp.state_dict()["weight"].flatten()
+        return self.mlp.state_dict()["weight"]
 
     def decode(self, x):
         x = x.reshape(*x.shape[:-1], 2, -1).transpose(-2, -1)

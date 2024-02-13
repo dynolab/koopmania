@@ -400,6 +400,15 @@ class NormalNLL(ModelObject):
         # z = 10 * nn.Softplus()(z3)
         return z3
 
+    def get_modes(self, x):
+        return [self.get_modes_mu(x), self.get_modes_sig(x)]
+
+    def get_amplitudes(self, x):
+        return [
+            self.l4_mu.state_dict()["weight"].flatten(),
+            self.l4_sig.state_dict()["weight"].flatten(),
+        ]
+
     def forward(self, w, data, training_mask=None):
         mu, sig = self.decode(w)
         if training_mask is None:
@@ -608,7 +617,7 @@ class MultiNormalNLL(ModelObject):
         for i in range(num_freqs[0]):
             model = NormalNLL(x_dim, [1, 1], n=64, n2=32)
             self.networks_mu.append(model)
-        self.mlp_mu = nn.Linear(2 * num_freqs[0], x_dim)
+        self.mlp_mu = nn.Linear(2 * num_freqs[0], x_dim, bias=False)
 
         for i in range(num_freqs[1]):
             model = NormalNLL(x_dim, [1, 1], n=64, n2=32)
