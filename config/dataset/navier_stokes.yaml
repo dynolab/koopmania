@@ -1,0 +1,34 @@
+_target_: src.data_loaders.navier_stokes.NSLoader
+name: navier_stokes
+
+seed: ${seed}
+T: ${T}
+ds: ${delta_t}
+#dataset_loader:
+
+dir: ${datasets_root}/${dataset.name}
+data_path: ${dataset.dir}/ts_3.npy
+t_save_path: ${dataset.dir}/t_3.npy
+
+nu: 1e-3  # 1/Re or viscosity
+
+# Domain definition
+Lx: numpy.pi  # Domain half-length in x-direction
+Ly: numpy.pi  # Domain half-length in y-direction
+
+# Numerical parameters
+Nx: 512  # number of Fourier modes in discrete solution x-dir
+Ny: 512  # number of Fourier modes in discrete solution y-dir
+
+x_dim: 10
+sample: 10
+
+
+init_cond:
+  _target_: src.data_loaders.navier_stokes.InitCond
+  Nx: ${dataset.Nx}
+  Ny: ${dataset.Ny}
+
+plot: False
+render: ${render_path}
+render_name: 'ns_view'
