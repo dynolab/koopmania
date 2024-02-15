@@ -503,9 +503,8 @@ class KoopmanProb(nn.Module):
             xhat from 0 to T.
 
         """
-        t0 = t[0]
 
-        t = torch.tensor(torch.arange(t0, t0 + len(t)), device=self.device) + 1
+        t = torch.tensor(t, device=self.device) + 1
         ts_ = torch.unsqueeze(t, -1).type(torch.get_default_dtype())
 
         o = torch.unsqueeze(self.omegas, 0)
@@ -518,9 +517,7 @@ class KoopmanProb(nn.Module):
         else:
             params = self.model_obj.decode(k)
 
-        return (
-            params[0].cpu().detach().numpy()
-        )  
+        return params[0].cpu().detach().numpy()
 
     def mode_decomposition(self, T, n_modes, x_0, plot=False, plot_n_last=None):
         """
@@ -553,18 +550,18 @@ class KoopmanProb(nn.Module):
         modes = self.model_obj.get_modes(k)
 
         amps = self.model_obj.get_amplitudes()
-        for k in range(3):
-            for j in range(len(modes)):
-                idxs = torch.argsort(-amps[j].abs(), dim=-1)
+        for j in range(len(modes)):
+            idxs = torch.argsort(-amps[j].abs(), dim=-1)
+            for k in range(3):
                 for i in range(n_modes):
-                    mode = modes[j][:, idxs[i, k]].detach().numpy()
+                    mode = modes[j][:, idxs[k, i]].detach().numpy()
                     if plot:
                         plt.plot(mode)
                         plt.xlabel("Time")
                         plt.title(f"param {j}, Koopman mode {i} at dim {k}")
                         plt.show()
 
-        return [mode[:, idxs[:n_modes]].detach().numpy() for mode in modes]
+        return [mode[:, idxs[:, :n_modes]].detach().numpy() for mode in modes]
 
 
 class CoordinateKoopmanProb(KoopmanProb):
@@ -581,19 +578,31 @@ class CoordinateKoopmanProb(KoopmanProb):
         verbose=False,
         lr_theta=1e-4,
         lr_omega=0,
+        lr_mlp=1e-4,
         hard_code=None,
         l1_coef=0,
         l2_coef=0,
         **kwargs,
     ):
         super(CoordinateKoopmanProb, self).__init__(
-            model_obj, sample_num=12, seed=None, **kwargs
+            name,
+            model_obj,
+            sample_num,
+            seed,
+            iterations,
+            interval,
+            cutoff,
+            weight_decay,
+            verbose,
+            lr_theta,
+            lr_omega,
+            hard_code,
+            **kwargs,
         )
         self.name = name
         self.l1_coef = l1_coef
         self.l2_coef = l2_coef
-        self.sample_num = sample_num
-        self.seed = seed
+        self.lr_mlp = lr_mlp
 
     def sgd(
         self,
@@ -653,11 +662,13 @@ class CoordinateKoopmanProb(KoopmanProb):
             )
             opts.append(opt)
         opt_mlp_mu = optim.SGD(
-            self.model_obj.mlp_mu.parameters(), lr=lr_theta, weight_decay=self.l2_coef
+            self.model_obj.mlp_mu.parameters(),
+            lr=self.lr_mlp,
+            weight_decay=self.l2_coef,
         )
         opt_mlp_sigma = optim.SGD(
             self.model_obj.mlp_sigma.parameters(),
-            lr=lr_theta,
+            lr=self.lr_mlp,
             weight_decay=self.l2_coef,
         )
         opt_omega = optim.SGD([omega], lr=lr_omega / T)

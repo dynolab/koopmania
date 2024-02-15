@@ -1,0 +1,3 @@
+_target_: src.models.dmd.DMD
+name: dmd
+rank: 10

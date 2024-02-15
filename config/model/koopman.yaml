@@ -10,5 +10,6 @@ sample_num: 12
 weight_decay: 0.00
 lr_theta: 3e-3
 lr_omega: 1e-7
+verbose: true
 hard_code_periods:
 iterations: 200

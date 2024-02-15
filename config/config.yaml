@@ -1,19 +1,30 @@
 defaults:
   - _self_
   - user_settings: user_settings
-  - model: fourier
+  - model: dmd
   - dataset: navier_stokes
 
+results_dir: ${user_settings.hydra_dir}
 render_path: ${user_settings.project_path}/render
-save_path: ${user_settings.project_path}/plots
+save_path: ${user_settings.results_dir}/plots
+eval_save_path: ${results_dir}/stats.csv
 datasets_root: ${user_settings.datasets_root}
+hydra_root: ${user_settings.hydra_root}
+hydra_dir: ${user_settings.hydra_dir}
+hydra:
+  run:
+    dir: ${hydra_dir}
 #
-T: 1000.0
-delta_t: 1
+T: 1
+delta_t: 1e-4
 
-y_window: 10
+y_window: 300
 
 seed: 321
 
-plot: True
-sample_plot:
+plotting:
+  plot: True
+  n_plots: 10
+  render: false
+  save:
+    dir: ${user_settings.project_path}/plots

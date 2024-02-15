@@ -1,0 +1,28 @@
+_target_: src.models.koopman_probabilistic.CoordinateKoopmanProb
+_recursive_: true
+name: coord_prob_koopman
+model_obj:
+  _target_: src.models.model_objs.prob_model_objs.MultiNormalNLL
+  x_dim: ${dataset.x_dim}
+  num_freqs:
+    - 8
+    - 3
+  base_model:
+    _target_: src.models.model_objs.prob_model_objs.NormalNLL
+    x_dim: ${dataset.x_dim}
+    num_freqs:
+      - 1
+      - 1
+    n: 32
+    n2: 16
+sample_num: 12
+seed: ${seed}
+weight_decay: 0.00
+l1_coef: 0.02
+l2_coef: 0.0
+lr_theta: 3e-3
+lr_omega: 1e-7
+lr_mlp: 3e-3
+verbose: true
+hard_code_periods:
+iterations: 500

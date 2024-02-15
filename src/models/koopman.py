@@ -299,7 +299,6 @@ class koopman(nn.Module):
         None.
 
         """
-
         assert len(xt.shape) > 1, "Input data needs to be at least 2D"
         losses = []
         hard_coded_omegas = (
@@ -342,9 +341,7 @@ class koopman(nn.Module):
             xhat from 0 to T.
 
         """
-        t0 = int(t[0] / (t[1] - t[0]))
-
-        t = torch.tensor(torch.arange(t0, t0 + len(t)), device=self.device)
+        t = torch.tensor(t, device=self.device) + 1
         ts_ = torch.unsqueeze(t, -1).type(torch.get_default_dtype())
 
         o = torch.unsqueeze(self.omegas, 0)
@@ -388,16 +385,16 @@ class koopman(nn.Module):
 
         amps = self.model_obj.get_amplitudes()
         idxs = torch.argsort(-amps.abs(), dim=-1)
-        for j in range(3):
+        for j in range(1):
             for i in range(n_modes):
-                mode = modes[:, idxs[i, j]].detach().numpy()
+                mode = modes[:, idxs[j, i]].detach().numpy()
                 if plot:
                     plt.plot(mode)
                     plt.xlabel("Time")
                     plt.title(f"Koopman mode {i} at dim {j}")
                     plt.show()
 
-        return modes[:, idxs[:n_modes]].detach().numpy()
+        return modes[:, idxs[:, :n_modes]].detach().numpy()
 
 
 class coordinate_koopman(koopman):

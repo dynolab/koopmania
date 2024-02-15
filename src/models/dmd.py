@@ -1,5 +1,5 @@
-import numpy as np
 import matplotlib.pyplot as plt
+import numpy as np
 import torch
 
 
@@ -50,7 +50,6 @@ class DMD:
             for i in range(n_modes):
                 mode = modes[j : j + 1, i : i + 1]
 
-                print(np.diag(self.Lambda).shape)
                 sgm = np.diag(self.Lambda)[i]
                 b = np.dot(np.linalg.pinv(mode), x0[j])
 

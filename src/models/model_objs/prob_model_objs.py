@@ -4,6 +4,7 @@
 @authors: Alex Mallen (atmallen@uw.edu)
 Built on code from Henning Lange (helange@uw.edu)
 """
+from copy import deepcopy
 
 import numpy as np
 import torch
@@ -401,12 +402,14 @@ class NormalNLL(ModelObject):
         return z3
 
     def get_modes(self, x):
-        return [self.get_modes_mu(x), self.get_modes_sig(x)]
+        x1 = x[..., self.param_idxs[0]]
+        x2 = x[..., self.param_idxs[1]]
+        return [self.get_modes_mu(x1), self.get_modes_sig(x2)]
 
-    def get_amplitudes(self, x):
+    def get_amplitudes(self):
         return [
-            self.l4_mu.state_dict()["weight"].flatten(),
-            self.l4_sig.state_dict()["weight"].flatten(),
+            self.l4_mu.state_dict()["weight"],
+            self.l4_sig.state_dict()["weight"],
         ]
 
     def forward(self, w, data, training_mask=None):
@@ -608,19 +611,20 @@ class PoissonNLL(ModelObject):
 
 
 class MultiNormalNLL(ModelObject):
-    def __init__(self, x_dim, num_freqs):
+    def __init__(self, x_dim, num_freqs, base_model):
         super(MultiNormalNLL, self).__init__(num_freqs)
         self.num_freq = num_freqs
         self.x_dim = x_dim
+        self.base_model = base_model
         self.networks_mu = []
         self.networks_sigma = []
         for i in range(num_freqs[0]):
-            model = NormalNLL(x_dim, [1, 1], n=64, n2=32)
+            model = deepcopy(base_model)
             self.networks_mu.append(model)
         self.mlp_mu = nn.Linear(2 * num_freqs[0], x_dim, bias=False)
 
         for i in range(num_freqs[1]):
-            model = NormalNLL(x_dim, [1, 1], n=64, n2=32)
+            model = deepcopy(base_model)
             self.networks_sigma.append(model)
         self.mlp_sigma = nn.Linear(2 * num_freqs[1], x_dim)
 
@@ -647,8 +651,8 @@ class MultiNormalNLL(ModelObject):
 
     def get_amplitudes(self):
         return (
-            self.mlp_mu.state_dict()["weight"].flatten(),
-            self.mlp_sigma.state_dict()["weight"].flatten(),
+            self.mlp_mu.state_dict()["weight"],
+            self.mlp_sigma.state_dict()["weight"],
         )
 
     def decode(self, x):

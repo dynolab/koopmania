@@ -3,21 +3,13 @@ import os
 import numpy as np
 import yaml
 
-from src.postprocessing.spectral_and_modes_analysis import plot_modes
-from src.models.koopman import (
-    koopman,
-    coordinate_koopman,
-    fully_connected_mse,
-    multi_nn_mse,
-)
+from src.data_loaders.quasi_periodic_data import (gen_sawtooth, gen_sine,
+                                                  gen_squares,
+                                                  gen_unit_impulse)
 from src.models.fourier import fourier
-from src.data_loaders.quasi_periodic_data import (
-    gen_sine,
-    gen_sawtooth,
-    gen_squares,
-    gen_unit_impulse,
-)
-
+from src.models.koopman import (coordinate_koopman, fully_connected_mse,
+                                koopman, multi_nn_mse)
+from src.postprocessing.spectral_and_modes_analysis import plot_modes
 
 np.random.seed(42)
 
@@ -38,7 +30,6 @@ functions = {
 method = cfg["model"]
 
 time_series = functions[cfg["function"]](T)
-print(cfg["function"])
 if method == "fourier":
     model = fourier(num_freqs=m_freqs)
 elif method == "koopman":
