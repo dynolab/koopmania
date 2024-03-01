@@ -6,6 +6,7 @@ from numpy.typing import NDArray
 from omegaconf.dictconfig import DictConfig
 
 from bin.plotting.plot_ts import plot_forecast
+from src.utils.results import plot_mode
 
 
 def plot_modes(
@@ -13,7 +14,11 @@ def plot_modes(
     model,
     x_0,
     num_modes=6,
+    num_dims=1,
     plot_n_last=None,
+    ax=None,
+    show=False,
+    stochastic=False,
 ):
     """
     Plot modes obtained by mode decomposition of given model in time and frequency domains
@@ -38,7 +43,31 @@ def plot_modes(
         plot_n_last = len(t)
     n_lim = max(0, len(t) - plot_n_last)
     t = np.arange(n_lim, len(t))
-    model.mode_decomposition(t, num_modes, x_0, plot=True, plot_n_last=plot_n_last)
+    modes = model.mode_decomposition(
+        len(t), num_modes, x_0, num_dims, plot=False, plot_n_last=plot_n_last
+    )
+    if not stochastic:
+        modes = [modes]
+    if ax is None:
+        fig, ax = plt.subplots(
+            num_dims * len(modes), num_modes, figsize=(15, 10), sharex=True
+        )
+    plt.suptitle(f"{model.name} Modes")
+    for k in range(len(modes)):
+        for j in range(num_dims):
+            for i in range(num_modes):
+                modes_k = modes[k]
+                plot_mode(
+                    t,
+                    modes_k[:, j, i],
+                    i,
+                    j,
+                    k,
+                    model=model.name,
+                    ax=ax[j + k * num_dims][i],
+                )
+    if show:
+        plt.show()
 
 
 # def plot_modes_stochastic(

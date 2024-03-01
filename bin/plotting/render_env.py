@@ -2,7 +2,7 @@ import numpy as np
 from PIL import Image
 
 
-def render_env(T, ds, render_path, save_path, name: str):
+def render_env(T, render_path, save_path, name: str):
     frames = []
     for frame_number in np.arange(0, T):
         frame = Image.open(rf"{render_path}\plot_{frame_number}" + ".png")
@@ -13,6 +13,6 @@ def render_env(T, ds, render_path, save_path, name: str):
         save_all=True,
         append_images=frames[1:],
         optimize=True,
-        duration=20,
+        duration=10,
         loop=0,
     )

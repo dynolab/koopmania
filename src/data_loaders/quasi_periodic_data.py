@@ -22,7 +22,6 @@ def gen_sine(T, ds, n_sines=3):
         A, w = np.random.uniform(0, 10, size=2)
         phi = np.random.uniform(0, np.pi)
         time_series += A * np.sin(2 * np.pi * w * t + phi)
-
     return t, time_series.reshape(-1, 1)
 
 

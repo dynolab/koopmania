@@ -6,6 +6,7 @@ from sklearn.model_selection import TimeSeriesSplit
 
 from bin.plotting.plot_ts import plot_forecast
 from bin.plotting.render_env import render_env
+from src.postprocessing.spectral_and_modes_analysis import plot_modes
 from src.utils.common import get_config_path, transform_time
 from src.utils.results import log_scores
 
@@ -29,7 +30,17 @@ def run_experiment(cfg):
     model = instantiate(cfg.model)
     model.fit(x_train)
     x_0 = time_series[0]
-    model.mode_decomposition(1000, 3, x_0, plot=True)
+    plot_modes(
+        t,
+        model,
+        x_0,
+        num_modes=3,
+        num_dims=2,
+        plot_n_last=None,
+        ax=None,
+        show=True,
+        stochastic=True,
+    )
     reconstr_ts = model.predict(t_train, x_0)
     x_1 = x_test[0]
     pred_ts = model.predict(t_test, x_1)

@@ -44,9 +44,13 @@ class DMD:
 
         return np.transpose(t_dyn)
 
-    def mode_decomposition(self, T, n_modes, x0, plot=False, plot_n_last=None):
+    def mode_decomposition(
+        self, T, n_modes, x0, n_dims=1, plot=False, plot_n_last=None
+    ):
         modes = self.Psi[:, :n_modes]
-        for j in range(3):
+        dyn_modes = []
+        for j in range(n_dims):
+            dyn_modes_dim = []
             for i in range(n_modes):
                 mode = modes[j : j + 1, i : i + 1]
 
@@ -57,14 +61,18 @@ class DMD:
                 t_dyn[:, 0] = x0[j]
                 for k in range(1, T):
                     t_dyn[:, k] = mode * (sgm ** (k - 1)) @ b
+                dyn_modes_dim.append(t_dyn)
+
                 if plot:
                     print(t_dyn.shape)
                     plt.plot(t_dyn[0])
                     plt.xlabel("Time")
                     plt.title(f"DMD mode {i} at dim {j}")
                     plt.show()
-
-        return modes
+            dyn_modes_dim = np.stack(dyn_modes_dim, axis=-1)
+            dyn_modes.append(dyn_modes_dim)
+        dyn_modes = np.stack(dyn_modes, axis=-2)
+        return dyn_modes[0]
         # for i in range(DM.shape[2]):
         #     plt.imshow(DM[:, :, i].real, cmap="jet")
         #     plt.colorbar()

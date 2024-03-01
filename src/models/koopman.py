@@ -42,6 +42,7 @@ class koopman(nn.Module):
         model_obj,
         sample_num=12,
         weight_decay=0.00,
+        l1_coef=0.0,
         lr_theta=3e-3,
         lr_omega=1e-7,
         iterations=10,
@@ -91,6 +92,7 @@ class koopman(nn.Module):
 
         self.sample_num = sample_num
         self.weight_decay = weight_decay
+        self.l1_coef = l1_coef
         self.lr_theta = lr_theta
         self.lr_omega = lr_omega
         self.hard_code_periods = hard_code_periods
@@ -259,7 +261,12 @@ class koopman(nn.Module):
             wt = ts_ * o
 
             k = torch.cat([torch.cos(wt), torch.sin(wt)], -1)
-            loss = torch.mean(self.model_obj(k, xt_t))
+            threshold = len(t)
+            diff = (2 * np.pi / omega - threshold).abs()
+
+            loss = (
+                torch.mean(self.model_obj(k, xt_t)) + self.l1_coef * (1 / diff).mean()
+            )
 
             opt.zero_grad()
             opt_omega.zero_grad()
@@ -317,7 +324,8 @@ class koopman(nn.Module):
 
             if self.verbose:
                 print("Iteration ", i)
-                print("Omegas: ", 2 * np.pi / self.omegas)
+                print("Omegas: ", self.omegas)
+                print("Period: ", 2 * np.pi / self.omegas)
 
             l = self.sgd(xt, verbose=self.verbose)
             if self.verbose:
@@ -354,7 +362,9 @@ class koopman(nn.Module):
 
         return mu.cpu().detach().numpy()
 
-    def mode_decomposition(self, T, n_modes, x0, plot=False, plot_n_last=None):
+    def mode_decomposition(
+        self, T, n_modes, x0, n_dims=1, plot=False, plot_n_last=None
+    ):
         """
         Returns first n modes of prediction built by Koopman algorithm
         :param T: TYPE int
@@ -385,16 +395,16 @@ class koopman(nn.Module):
 
         amps = self.model_obj.get_amplitudes()
         idxs = torch.argsort(-amps.abs(), dim=-1)
-        for j in range(1):
-            for i in range(n_modes):
-                mode = modes[:, idxs[j, i]].detach().numpy()
-                if plot:
+        if plot:
+            for j in range(n_dims):
+                for i in range(n_modes):
+                    mode = modes[:, idxs[j, i]].detach().numpy()
                     plt.plot(mode)
                     plt.xlabel("Time")
                     plt.title(f"Koopman mode {i} at dim {j}")
                     plt.show()
 
-        return modes[:, idxs[:, :n_modes]].detach().numpy()
+        return modes[:, idxs[:n_dims, :n_modes]].detach().numpy()
 
 
 class coordinate_koopman(koopman):
@@ -420,6 +430,7 @@ class coordinate_koopman(koopman):
             model_obj,
             sample_num,
             weight_decay,
+            l1_coef,
             lr_theta,
             lr_omega,
             iterations,
@@ -429,7 +440,6 @@ class coordinate_koopman(koopman):
             hard_code_periods,
             **kwargs,
         )
-        self.l1_coef = l1_coef
         self.lr_mlp = lr_mlp
 
     def sgd(self, xt, verbose=False):
@@ -488,10 +498,8 @@ class coordinate_koopman(koopman):
             wt = ts_ * o
 
             k = torch.cat([torch.cos(wt), torch.sin(wt)], -1)
-            loss = (
-                torch.mean(self.model_obj(k, xt_t))
-                + self.l1_coef * (omega.abs()).mean()
-            )
+            V = self.model_obj.mlp.weight
+            loss = torch.mean(self.model_obj(k, xt_t)) + self.l1_coef * (V.abs()).mean()
 
             for opt in opts:
                 opt.zero_grad()
@@ -507,9 +515,9 @@ class coordinate_koopman(koopman):
 
             losses.append(loss.cpu().detach().numpy())
 
-        if verbose:
-            print("Setting to", 2 * np.pi / omega)
-
+        # if verbose:
+        #     print("Setting to", 2 * np.pi / omega)
+        print("V: ", V)
         self.omegas = omega.data
 
         return np.mean(losses)

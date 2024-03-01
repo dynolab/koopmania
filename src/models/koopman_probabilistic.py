@@ -519,7 +519,9 @@ class KoopmanProb(nn.Module):
 
         return params[0].cpu().detach().numpy()
 
-    def mode_decomposition(self, T, n_modes, x_0, plot=False, plot_n_last=None):
+    def mode_decomposition(
+        self, T, n_modes, x_0, n_dims=1, plot=False, plot_n_last=None
+    ):
         """
         Returns first n modes of prediction built by Koopman algorithm
         :param T: TYPE int
@@ -552,7 +554,7 @@ class KoopmanProb(nn.Module):
         amps = self.model_obj.get_amplitudes()
         for j in range(len(modes)):
             idxs = torch.argsort(-amps[j].abs(), dim=-1)
-            for k in range(3):
+            for k in range(n_dims):
                 for i in range(n_modes):
                     mode = modes[j][:, idxs[k, i]].detach().numpy()
                     if plot:
@@ -561,7 +563,7 @@ class KoopmanProb(nn.Module):
                         plt.title(f"param {j}, Koopman mode {i} at dim {k}")
                         plt.show()
 
-        return [mode[:, idxs[:, :n_modes]].detach().numpy() for mode in modes]
+        return [mode[:, idxs[:n_dims, :n_modes]].detach().numpy() for mode in modes]
 
 
 class CoordinateKoopmanProb(KoopmanProb):

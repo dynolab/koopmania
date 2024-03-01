@@ -6,6 +6,8 @@ import numpy as np
 from numpy.typing import NDArray
 from omegaconf.dictconfig import DictConfig
 
+from src.utils.results import plot_ts
+
 
 def plot_forecast(
     t: NDArray,
@@ -26,10 +28,7 @@ def plot_forecast(
     else:
         iterator = range(pred_ts.shape[1])
     for i in iterator:
-        plt.plot(t, time_series[:, i], label="original ts", color="blue")
-        plt.plot(t[:-y_window], reconstr_ts[:, i], label=model, color="red")
-        plt.plot(t[-y_window:], pred_ts[:, i], linestyle="--", color="red")
-        plt.axvline(x=t[-y_window], color="black", linestyle="--", alpha=0.6)
+        plot_ts(t, time_series[:, i], reconstr_ts[:, i], pred_ts[:, i], model, y_window)
         plt.title(f"example {i+1}, {metric_name}={metric:.4f}")
         plt.legend()
         if save is not None:
