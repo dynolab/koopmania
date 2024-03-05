@@ -3,13 +3,10 @@ import os
 import numpy as np
 import yaml
 
+from src.data_loaders.quasi_periodic_data import (gen_sawtooth, gen_sine,
+                                                  gen_squares,
+                                                  gen_unit_impulse)
 from src.postprocessing.spectral_and_modes_analysis import check_fourier
-from src.data_loaders.quasi_periodic_data import (
-    gen_sine,
-    gen_sawtooth,
-    gen_squares,
-    gen_unit_impulse,
-)
 
 path = os.getcwd()
 parent_dir = os.path.dirname(path)
