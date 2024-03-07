@@ -1,20 +1,40 @@
 import os
+from dataclasses import dataclass
 
 import matplotlib.pyplot as plt
 import numpy as np
 from hydra.utils import get_object
+from numpy.typing import NDArray
 from scipy.integrate import odeint
 
 from bin.plotting.render_env import render_env
+from src.data_loaders.base import BaseDataLoader
 
 
-def InitCond(Nx, Ny):
+@dataclass(kw_only=True)
+class DomainParams:
+    nu: float
+    Lx: float
+    Ly: float
+    Nx: int
+    Ny: int
+
+
+@dataclass(kw_only=True)
+class SaveParams:
+    dir: str
+    data_path: str
+    render: str
+    render_name: str
+
+
+def init_cond(Nx, Ny) -> NDArray:
     Om_hat = np.zeros((Nx, Ny), dtype=np.cdouble)
 
     # We take a random distribution of the vorticity
     Om_hat[0, 4] = np.random.randn() + 1j * np.random.randn()
-    # Om_hat[1, 4] = np.random.randn() # + 1j * np.random.randn()
-    Om_hat[1, 1] = np.random.randn() + 1j * np.random.randn()
+    Om_hat[1, 4] = np.random.randn() + 1j * np.random.randn()
+    Om_hat[3, 3] = np.random.randn() + 1j * np.random.randn()
     Om_hat[3, 0] = np.random.randn() + 1j * np.random.randn()
 
     Om = np.real(np.fft.ifft2(Om_hat))
@@ -23,62 +43,51 @@ def InitCond(Nx, Ny):
     return Om
 
 
-class NSLoader:
+class NSLoader(BaseDataLoader):
     def __init__(
         self,
-        name,
-        seed,
-        T,
-        ds,
-        dir,
-        data_path,
-        t_save_path,
-        x_dim,
-        sample,
+        name: str,
+        T: int,
+        ds: float,
+        seed: int,
+        domain_params: DomainParams,
+        x_dim: int,
+        sample: int,
+        save_params: SaveParams,
         init_cond,
-        nu,
-        Nx,
-        Ny,
-        Lx,
-        Ly,
-        plot=False,
-        render=False,
-        render_name="",
+        plot: bool = False,
     ):
+        super().__init__(name, T, ds)
         self.seed = seed
-        self.dir = dir
-        self.T = T
-        self.ds = ds
-        self.nu = nu
-        self.Lx = get_object(Lx)
-        self.Ly = get_object(Ly)
-        self.Nx = Nx
-        self.Ny = Ny
-        self.name = name
+        self.nu = domain_params.nu
+        self.Lx = get_object(domain_params.Lx)
+        self.Ly = get_object(domain_params.Ly)
+        self.Nx = domain_params.Nx
+        self.Ny = domain_params.Ny
         self.plot = plot
-        self.data_path = data_path
-        self.save_path = t_save_path
-        self.render = render
-        self.render_name = render_name
+        self.dir = save_params.dir
+        self.data_path = save_params.data_path
+        self.render = save_params.render
+        self.render_name = save_params.render_name
 
         self.x_dim = x_dim
         self.sample = sample
 
         self.init_cond = init_cond
 
-    def load(self):
+    def load(self) -> tuple[NDArray]:
         if not os.path.exists(self.data_path):
             self.run_NS()
 
-        t = np.load(self.save_path)
         time_series = np.load(self.data_path)
+        t = np.arange(0, self.T + self.ds, self.ds)
         if self.sample:
             mask_idxs = np.random.randint(time_series.shape[1], size=self.sample)
             time_series = time_series[:, mask_idxs]
 
         return t, time_series
 
-    def run_NS(self):
+    def run_NS(self) -> None:
         # # Clear figures and set number format
         print("start NS")
         plt.close("all")
@@ -155,29 +164,29 @@ class NSLoader:
         # Time-stepping loop
         time_series = []
         t_l = []
+        i = 0
         while t < Tf:
             # Solve using ODE solver
             v = odeint(self.RHS, Om.flatten(), [t, t + ds])
             Om = v[-1].reshape(self.Nx, self.Ny)
             t_l.append(t)
             t += ds
+            i += 1
             time_series.append(Om.flatten())
             # Plot the solution
-            if self.plot:
+            # if self.plot:
+            if i % 40 == 0:
                 self._plot(Om, t)
 
         # render
         if self.render:
-            render_env(self.T, self.ds, self.render, self.dir, self.render_name)
+            render_env(self.T, self.render, self.dir, self.render_name)
         # # save
 
-        t_l = np.array(t_l)
-        with open(self.save_path, "wb") as f:
-            np.save(f, t_l)
         with open(self.data_path, "wb") as f:
             np.save(f, np.vstack(time_series))
 
-    def _plot(self, Om, t):
+    def _plot(self, Om: NDArray, t: float) -> None:
         plt.figure(figsize=(6, 5))
         plt.pcolormesh(self.X, self.Y, Om, shading="auto", cmap="jet")
         plt.colorbar(label=r"$\omega(x,y,t)$")
@@ -188,12 +197,12 @@ class NSLoader:
         plt.title(f"Vorticity distribution at t = {t:.2f}", fontsize=12)
         plt.grid(False)
         plt.tight_layout()
-        plt.savefig(rf"{self.render}\plot_{round(t,1)}".replace(".", ",") + ".png")
+        plt.savefig(rf"{self.render}\plot_{round(t, 1)}".replace(".", ",") + ".png")
         plt.show()
         plt.close()
         plt.pause(0.001)
 
-    def RHS(self, Om_vec, t):
+    def RHS(self, Om_vec: NDArray, t: float) -> NDArray:
         Om = Om_vec.reshape((self.Nx, self.Ny))
         Om_hat = np.fft.fft2(Om)
         Omx = np.real(np.fft.ifft2(1j * self.Kx * Om_hat))

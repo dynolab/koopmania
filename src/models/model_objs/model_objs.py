@@ -3,45 +3,15 @@ from copy import deepcopy
 import torch
 from torch import nn
 
+from src.models.model_objs.base import BaseModelObject
 
-class model_object(nn.Module):
-    def __init__(self, num_freq, x_dim):
-        super(model_object, self).__init__()
-        self.num_freq = num_freq
+
+class ModelObject(BaseModelObject):
+    def __init__(self, num_freq: int, x_dim: int):
+        super(ModelObject, self).__init__(num_freq)
         self.x_dim = x_dim
 
-    def forward(self, y, x):
-        """
-        Forward computes the error.
-
-        Input:
-            y: temporal snapshots of the linear system
-                type: torch.tensor
-                dimensions: [T, (batch,) num_frequencies ]
-
-            x: data set
-                type: torch.tensor
-                dimensions: [T, ...]
-        """
-
-        raise NotImplementedError()
-
-    def decode(self, y):
-        """
-        Evaluates f at temporal snapshots y
-
-        Input:
-            y: temporal snapshots of the linear system
-                type: torch.tensor
-                dimensions: [T, (batch,) num_frequencies ]
-
-            x: data set
-                type: torch.tensor
-                dimensions: [T, ...]
-        """
-        raise NotImplementedError()
-
-    def get_modes(self, x):
+    def get_modes(self, x: torch.Tensor) -> torch.Tensor:
         """
         Returns modes as an output of neural network before the final fully-connected layer
         :param x: data set
@@ -52,7 +22,7 @@ class model_object(nn.Module):
         """
         raise NotImplementedError()
 
-    def get_amplitudes(self):
+    def get_amplitudes(self) -> nn.Parameter:
         """
         Returns amplitudes corresponding to the weights of final fully-connected layer
         :return: torch.tensor
@@ -61,27 +31,26 @@ class model_object(nn.Module):
         raise NotImplementedError()
 
 
-class fully_connected_mse(model_object):
-    def __init__(self, x_dim, num_freqs, n):
-        super(fully_connected_mse, self).__init__(num_freqs, x_dim)
+class FullyConnectedMse(ModelObject):
+    def __init__(self, x_dim: int, num_freqs: int, n: int):
+        super(FullyConnectedMse, self).__init__(num_freqs, x_dim)
 
         self.l1 = nn.Linear(2 * num_freqs, n)
         self.l2 = nn.Linear(n, n * 2)
-        # self.l21 = nn.Linear(n * 2, n * 4)
         self.l3 = nn.Linear(n * 2, 2 * num_freqs)
         self.amplitudes = nn.Linear(2 * num_freqs, x_dim)
 
-    def get_modes(self, x):
+    def get_modes(self, x: torch.Tensor) -> torch.Tensor:
         o0 = x
         o1 = nn.Tanh()(self.l1(o0))
         o2 = nn.Tanh()(self.l2(o1))
         o3 = self.l3(o2)
         return o3
 
-    def get_amplitudes(self):
+    def get_amplitudes(self) -> nn.Parameter:
         return self.state_dict()["amplitudes.weight"]
 
-    def decode(self, x):
+    def decode(self, x: torch.Tensor) -> torch.Tensor:
         o0 = x
         o1 = nn.Tanh()(self.l1(o0))
         o2 = nn.Tanh()(self.l2(o1))
@@ -89,14 +58,14 @@ class fully_connected_mse(model_object):
         o4 = self.amplitudes(o3)
         return o4
 
-    def forward(self, y, x):
+    def forward(self, y: torch.Tensor, x: torch.Tensor) -> torch.Tensor:
         xhat = self.decode(y)
         return torch.mean((xhat - x) ** 2, dim=-1)
 
 
-class multi_nn_mse(model_object):
-    def __init__(self, x_dim, num_freqs, base_model):
-        super(multi_nn_mse, self).__init__(num_freqs, x_dim)
+class MultiNNMse(ModelObject):
+    def __init__(self, x_dim: int, num_freqs: int, base_model: ModelObject):
+        super(MultiNNMse, self).__init__(num_freqs, x_dim)
         self.networks = []
         for i in range(num_freqs):
             model = deepcopy(base_model)
@@ -130,11 +99,18 @@ class multi_nn_mse(model_object):
         return torch.mean((xhat - x) ** 2, dim=-1)
 
 
-class observables_lib(model_object):
+class ObservablesLib(ModelObject):
     def __init__(
-        self, num_freq, x_dim, hidden_dim, latent_dim, num_poly, num_exp, num_layers
+        self,
+        num_freq: int,
+        x_dim: int,
+        hidden_dim: int,
+        latent_dim: int,
+        num_poly: int,
+        num_exp: int,
+        num_layers: int,
     ):
-        super(observables_lib, self).__init__(num_freq)
+        super(ObservablesLib, self).__init__(num_freq)
         self.num_poly = num_poly
         self.num_exp = num_exp
         self.latent_dim = latent_dim
@@ -150,7 +126,7 @@ class observables_lib(model_object):
 
         self.mlp = nn.Linear(latent_dim, x_dim)
 
-    def decode(self, x):
+    def decode(self, x: torch.Tensor) -> torch.Tensor:
         if len(x.shape) == 2:
             x = x.view(x.shape[0], 1, x.shape[1])
         encoder_out = self.model(x)
@@ -180,7 +156,7 @@ class observables_lib(model_object):
         out = self.mlp(embedding)
         return out
 
-    def forward(self, y, x):
+    def forward(self, y: torch.Tensor, x: torch.Tensor) -> torch.Tensor:
         xhat = self.decode(y)
         if len(x.shape) == 2:
             xhat = xhat.flatten(-2)

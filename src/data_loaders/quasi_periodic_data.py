@@ -1,9 +1,12 @@
 import numpy as np
 import pywt
+from numpy.typing import NDArray
 from scipy import signal
 
+from src.data_loaders.base import BaseDataLoader
 
-def gen_sine(T, ds, n_sines=3):
+
+def gen_sine(T: int, ds: float, n_sines: int = 3) -> tuple[NDArray, NDArray]:
     """
     Generate a linear combination of sine functions with random A, w and phi
     :param T: type Int
@@ -25,7 +28,7 @@ def gen_sine(T, ds, n_sines=3):
     return t, time_series.reshape(-1, 1)
 
 
-def gen_sawtooth(T, ds, freq=5):
+def gen_sawtooth(T: int, ds: float, freq: int = 5) -> tuple[NDArray, NDArray]:
     """
     Generate a sawtooth wave with given frequency in Hz
     :param T: type Int
@@ -43,7 +46,7 @@ def gen_sawtooth(T, ds, freq=5):
     return t, time_series.reshape(-1, 1)
 
 
-def gen_squares(T, ds, freq=5):
+def gen_squares(T: int, ds: float, freq: int = 5) -> tuple[NDArray, NDArray]:
     """
     Generate a square signal with given frequency in Hz
     :param T: TYPE int
@@ -61,7 +64,9 @@ def gen_squares(T, ds, freq=5):
     return t, time_series.reshape(-1, 1)
 
 
-def gen_unit_impulse(T, ds, n_repeats=None):
+def gen_unit_impulse(
+    T: int, ds: float, n_repeats: int | None = None
+) -> tuple[NDArray, NDArray]:
     """
     Generate unit impulse signal of given size with given number of repeats
     :param T: TYPE int
@@ -85,7 +90,7 @@ def gen_unit_impulse(T, ds, n_repeats=None):
     return t, time_series.reshape(-1, 1)
 
 
-def gen_wavelet(wavelet_name, n_repeats=5):
+def gen_wavelet(wavelet_name, n_repeats=5) -> NDArray:
     """
     Generate wavelet function repeated n times
     :param wavelet_name: TYPE str
@@ -112,7 +117,7 @@ def gen_wavelet(wavelet_name, n_repeats=5):
 # stochastic signals
 
 
-def periodic_normal(T, ds, n_freqs=5):
+def periodic_normal(T: int, ds: float, n_freqs: int = 5) -> tuple[NDArray, NDArray]:
     T1 = int(T / ds)
     mu = np.zeros(T1)
     sigma = np.zeros(T1)
@@ -127,7 +132,7 @@ def periodic_normal(T, ds, n_freqs=5):
     return t, time_series
 
 
-def periodic_gamma(T, ds, n_freqs=5):
+def periodic_gamma(T: int, ds: float, n_freqs: int = 5) -> tuple[NDArray, NDArray]:
     T1 = int(T / ds)
     alpha = np.zeros(T1)
     scale = np.zeros(T1)
@@ -142,7 +147,7 @@ def periodic_gamma(T, ds, n_freqs=5):
     return t, time_series
 
 
-def add_gaus_noise(time_series, sigma=1):
+def add_gaus_noise(time_series: NDArray, sigma: float = 1.0) -> NDArray:
     T = time_series.shape[0]
     new_ts = time_series + np.random.normal(0, sigma, size=(T, 1))
     return new_ts
@@ -158,16 +163,23 @@ NAME_DICT = {
 }
 
 
-class SyntheticGenerator:
-    def __init__(self, name, T, ds, x_dim, add_noise=False, sigma=0, **kwargs):
-        self.name = name
-        self.T = T
-        self.ds = ds
+class SyntheticGenerator(BaseDataLoader):
+    def __init__(
+        self,
+        name: str,
+        T: int,
+        ds: float,
+        x_dim: int,
+        add_noise: bool = False,
+        sigma: float = 0.0,
+        **kwargs
+    ):
+        super().__init__(name, T, ds)
         self.add_noise = add_noise
         self.sigma = sigma
         self.kwargs = kwargs
 
-    def load(self):
+    def load(self) -> tuple[NDArray, NDArray]:
         f = NAME_DICT[self.name]
         t, time_series = f(self.T, self.ds, **self.kwargs)
         if self.add_noise:

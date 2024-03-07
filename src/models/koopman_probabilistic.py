@@ -5,13 +5,16 @@
 Built on code from Henning Lange (helange@uw.edu)
 """
 
-import matplotlib.pyplot as plt
 import numpy as np
 import torch
+from numpy.typing import NDArray
 from torch import nn, optim
 
+from src.models.base import BaseModel
+from src.models.model_objs.base import BaseModelObject
 
-class KoopmanProb(nn.Module):
+
+class KoopmanProb(BaseModel):
     r"""
 
     model_obj: an object that specifies the function f and how to optimize
@@ -50,21 +53,20 @@ class KoopmanProb(nn.Module):
     def __init__(
         self,
         name: str,
-        model_obj,
-        sample_num=12,
-        seed=None,
-        iterations=20,
-        interval=10,
-        cutoff=0,
-        weight_decay=0,
-        verbose=False,
-        lr_theta=1e-4,
-        lr_omega=0,
-        hard_code=None,
+        model_obj: BaseModelObject,
+        sample_num: int = 12,
+        seed: int = None,
+        iterations: int = 20,
+        interval: int = 10,
+        cutoff: int = 0,
+        weight_decay: float = 0.0,
+        verbose: bool = False,
+        lr_theta: float = 1e-4,
+        lr_omega: float = 0.0,
+        hard_code: list | None = None,
         **kwargs,
     ):
-        super(KoopmanProb, self).__init__()
-        self.name = name
+        super(KoopmanProb, self).__init__(name)
         self.total_freqs = model_obj.total_freqs
         self.num_freqs = model_obj.num_freqs
         self.iterations = iterations
@@ -115,7 +117,7 @@ class KoopmanProb(nn.Module):
         )
         self.sample_num = sample_num
 
-    def find_fourier_omegas(self, xt, tt=None):
+    def find_fourier_omegas(self, xt: NDArray) -> NDArray:
         """
         computes the fft of the data to "hard-code" self.num_fourier_modes values of omega that
         will remain constant through optimization
@@ -130,9 +132,6 @@ class KoopmanProb(nn.Module):
             if self.hard_code is not None
             else None
         )
-        assert tt is None or not (
-            self.hard_code is not None and len(self.hard_code) < self.num_fourier_modes
-        ), "Fourier frequencies of non uniform samples is not yet implemented"
 
         best_omegas = None
         if self.num_fourier_modes > 0:
@@ -165,7 +164,7 @@ class KoopmanProb(nn.Module):
                 idx += num_freqs
         return best_omegas
 
-    def sample_error(self, xt, which, tt=None):
+    def sample_error(self, xt: NDArray, which: int) -> NDArray:
         """
 
         sample_error computes all temporally local losses within the first
@@ -219,7 +218,9 @@ class KoopmanProb(nn.Module):
 
         return np.concatenate(errors, axis=0)
 
-    def reconstruct(self, errors, use_heuristic=True):
+    def reconstruct(
+        self, errors: NDArray, use_heuristic: bool = True
+    ) -> tuple[NDArray, NDArray]:
         """
         reconstructs the total error surface from samples of temporally local loss functions
         :param errors: the temporally local loss functions for t=1,2... sampled within 2pi/t
@@ -244,7 +245,7 @@ class KoopmanProb(nn.Module):
 
         return E, E_ft
 
-    def fft(self, xt, i, tt=None, verbose=False):
+    def fft(self, xt: NDArray, i: int) -> tuple[NDArray, NDArray]:
         """
 
         fft first samples all temporaly local losses within the first period
@@ -257,8 +258,7 @@ class KoopmanProb(nn.Module):
             Index of the entry of omega
         verbose : TYPE boolean, optional
             DESCRIPTION. The default is False.
-        tt : TYPE numpy.array
-            the times of measurement of xt
+
         Returns
         -------
         E : TYPE numpy.array
@@ -267,8 +267,6 @@ class KoopmanProb(nn.Module):
             Global loss surface in frequency domain.
 
         """
-        assert tt is None, "Not yet implemented for non-uniform samples"  # TODO
-
         E, E_ft = self.reconstruct(self.sample_error(xt, i))
         omegas = np.linspace(0, 0.5, len(E))
 
@@ -292,7 +290,7 @@ class KoopmanProb(nn.Module):
                 np.abs(2 * np.pi / omegas_current - 1 / omegas[amax]) > 1
             ):
                 found = True
-                if verbose:
+                if self.verbose:
                     print("Setting", i, "to", 1 / omegas[amax])
 
                 self.omegas[i] = torch.from_numpy(np.array([omegas[amax]]))
@@ -304,14 +302,9 @@ class KoopmanProb(nn.Module):
 
     def sgd(
         self,
-        xt,
-        tt=None,
-        weight_decay=0,
-        verbose=False,
-        lr_theta=1e-5,
-        lr_omega=1e-5,
-        training_mask=None,
-    ):
+        xt: NDArray,
+        training_mask: bool = None,
+    ) -> float:
         """
 
         sgd performs a single epoch of stochastic gradient descent on parameters
@@ -321,8 +314,6 @@ class KoopmanProb(nn.Module):
         ----------
         xt : TYPE numpy.array
             Temporal data whose first dimension is time.
-        tt : TYPE numpy.array
-            the times of measurement of xt
         verbose : TYPE boolean, optionally
             The default is False.
 
@@ -342,15 +333,13 @@ class KoopmanProb(nn.Module):
         # opt = optim.Adam(self.model_obj.parameters(), lr=1e-4 * (1 / (1 + np.exp(-(iteration - 15)))), betas=(0.99, 0.9999), eps=1e-5, weight_decay=weight_decay)
         # opt = optim.SGD(self.model_obj.parameters(), lr=lr_theta * (1 / (1 + np.exp(-(iteration - 15)))), weight_decay=weight_decay)
         opt = optim.SGD(
-            self.model_obj.parameters(), lr=lr_theta, weight_decay=weight_decay
+            self.model_obj.parameters(),
+            lr=self.lr_theta,
+            weight_decay=self.weight_decay,
         )
-        opt_omega = optim.SGD([omega], lr=lr_omega / T)
+        opt_omega = optim.SGD([omega], lr=self.lr_omega / T)
 
-        t = (
-            torch.arange(T, device=self.device)
-            if tt is None
-            else torch.tensor(tt, device=self.device)
-        )
+        t = torch.arange(T, device=self.device)
 
         losses = []
 
@@ -395,7 +384,7 @@ class KoopmanProb(nn.Module):
 
             losses.append(loss.cpu().detach().numpy())
 
-        if verbose:
+        if self.verbose:
             print("Setting periods to", 2 * np.pi / omega)
             print("Setting omegas to", omega)
 
@@ -405,12 +394,11 @@ class KoopmanProb(nn.Module):
 
     def fit(
         self,
-        xt,
-        tt=None,
-        training_mask=None,
+        xt: NDArray,
+        training_mask: bool = None,
     ):
         """
-        Given a dataset, this function alternatingly optimizes omega and
+        Given a dataset, this function alternatinvely optimizes omega and
         parameters of f. Specifically, the algorithm performs interval many
         epochs, then updates all entries in omega. This process is repeated
         until iterations-many epochs have been performed
@@ -446,11 +434,11 @@ class KoopmanProb(nn.Module):
 
         assert len(xt.shape) > 1, "Input data needs to be at least 2D"
 
-        self.find_fourier_omegas(xt, tt)
+        self.find_fourier_omegas(xt)
 
-        self.max_t = tt.max() if tt is not None else xt.shape[0]
+        self.max_t = xt.shape[0]
         l = None
-        losses = []
+        self.losses = []
         for i in range(self.iterations):
             if i % self.interval == 0 and i < self.cutoff:
                 param_num = 0  # only update omegas that are note the first self.num_fourier_modes idxs of each param
@@ -458,7 +446,7 @@ class KoopmanProb(nn.Module):
                     for k in range(
                         param_num + self.num_fourier_modes, param_num + num_freqs
                     ):
-                        self.fft(xt, k, tt=tt, verbose=self.verbose)
+                        self.fft(xt, k)
                     param_num += num_freqs
 
             if self.verbose:
@@ -467,14 +455,9 @@ class KoopmanProb(nn.Module):
 
             l = self.sgd(
                 xt,
-                tt=tt,
-                weight_decay=self.weight_decay,
-                verbose=self.verbose,
-                lr_theta=self.lr_theta,
-                lr_omega=self.lr_omega,
                 training_mask=training_mask,
             )
-            losses.append(l)
+            self.losses.append(l)
             if self.verbose:
                 print("Loss: ", l)
             elif i % 50 == 10:
@@ -484,9 +467,8 @@ class KoopmanProb(nn.Module):
                 break
 
         print("Final loss:", l)
-        return losses
 
-    def predict(self, t, x0):
+    def predict(self, t: NDArray, x0: NDArray) -> NDArray:
         """
         Predicts the data from 1 to T.
 
@@ -520,8 +502,8 @@ class KoopmanProb(nn.Module):
         return params[0].cpu().detach().numpy()
 
     def mode_decomposition(
-        self, T, n_modes, x_0, n_dims=1, plot=False, plot_n_last=None
-    ):
+        self, T: int, n_modes: int, x_0: NDArray, n_dims: int = 1
+    ) -> NDArray:
         """
         Returns first n modes of prediction built by Koopman algorithm
         :param T: TYPE int
@@ -538,12 +520,8 @@ class KoopmanProb(nn.Module):
         size (T, n_modes)
 
         """
-        if plot_n_last is None:
-            plot_n_last = T
-        n_lim = max(0, T - plot_n_last)
-        t = torch.arange(n_lim, T, device=self.device) + 1
+        t = torch.arange(T, device=self.device) + 1
 
-        # t = torch.arange(T, device=self.device) + 1
         ts_ = torch.unsqueeze(t, -1).type(torch.get_default_dtype())
 
         o = torch.unsqueeze(self.omegas, 0)
@@ -552,18 +530,12 @@ class KoopmanProb(nn.Module):
         modes = self.model_obj.get_modes(k)
 
         amps = self.model_obj.get_amplitudes()
+        modes_all = []
         for j in range(len(modes)):
             idxs = torch.argsort(-amps[j].abs(), dim=-1)
-            for k in range(n_dims):
-                for i in range(n_modes):
-                    mode = modes[j][:, idxs[k, i]].detach().numpy()
-                    if plot:
-                        plt.plot(mode)
-                        plt.xlabel("Time")
-                        plt.title(f"param {j}, Koopman mode {i} at dim {k}")
-                        plt.show()
+            modes_all.append(modes[j, idxs[:n_dims, :n_modes]])
 
-        return [mode[:, idxs[:n_dims, :n_modes]].detach().numpy() for mode in modes]
+        return [mode.detach().numpy() for mode in modes_all]
 
 
 class CoordinateKoopmanProb(KoopmanProb):
@@ -571,19 +543,19 @@ class CoordinateKoopmanProb(KoopmanProb):
         self,
         name: str,
         model_obj,
-        sample_num=12,
-        seed=None,
-        iterations=20,
-        interval=10,
-        cutoff=0,
-        weight_decay=0,
-        verbose=False,
-        lr_theta=1e-4,
-        lr_omega=0,
-        lr_mlp=1e-4,
-        hard_code=None,
-        l1_coef=0,
-        l2_coef=0,
+        sample_num: int = 12,
+        seed: int = None,
+        iterations: int = 20,
+        interval: int = 10,
+        cutoff: int = 0,
+        weight_decay: float = 0.0,
+        verbose: bool = False,
+        lr_theta: float = 1e-4,
+        lr_omega: float = 0.0,
+        lr_mlp: float = 1e-4,
+        hard_code: list | None = None,
+        l1_coef: float = 0,
+        l2_coef: float = 0,
         **kwargs,
     ):
         super(CoordinateKoopmanProb, self).__init__(
@@ -615,7 +587,7 @@ class CoordinateKoopmanProb(KoopmanProb):
         lr_theta=1e-5,
         lr_omega=1e-5,
         training_mask=None,
-    ):
+    ) -> float:
         """
 
         sgd performs a single epoch of stochastic gradient descent on parameters

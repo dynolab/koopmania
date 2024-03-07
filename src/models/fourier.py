@@ -4,12 +4,14 @@
 @author: Henning Lange (helange@uw.edu)
 """
 
-import matplotlib.pyplot as plt
 import numpy as np
 import torch
+from numpy.typing import NDArray
+
+from src.models.base import BaseModel
 
 
-class fourier:
+class Fourier(BaseModel):
     """
 
     num_freqs: number of frequencies assumed to be present in data
@@ -23,21 +25,21 @@ class fourier:
 
     def __init__(
         self,
-        name,
-        num_freqs,
-        device="cpu",
-        learning_rate=1e-5,
-        iterations=1000,
-        verbose=False,
+        name: str,
+        num_freqs: int,
+        device: str = "cpu",
+        learning_rate: float = 1e-5,
+        iterations: int = 1000,
+        verbose: bool = False,
     ):
-        self.name = name
+        super().__init__(name)
         self.num_freqs = num_freqs
         self.device = device
         self.learning_rate = learning_rate
         self.iterations = iterations
         self.verbose = verbose
 
-    def fft(self, xt):
+    def fft(self, xt: NDArray) -> None:
         """
         Given temporal data xt, fft performs the initial guess of the
         frequencies contained in the data using the FFT.
@@ -94,7 +96,13 @@ class fourier:
 
             self.A = np.dot(np.linalg.pinv(Omega), xt)
 
-    def sgd(self, xt, iterations=1000, learning_rate=3e-9, verbose=False):
+    def sgd(
+        self,
+        xt: NDArray,
+        iterations: int = 1000,
+        learning_rate: float = 3e-9,
+        verbose: bool = False,
+    ) -> None:
         """
         Given temporal data xt, sgd improves the initial guess of omega
         by SGD. It uses the pseudo-inverse to obtain A.
@@ -151,7 +159,7 @@ class fourier:
         self.A = A.cpu().detach().numpy()
         self.freqs = freqs.cpu().detach().numpy()
 
-    def fit(self, xt):
+    def fit(self, xt: NDArray):
         """
 
         Parameters
@@ -179,7 +187,7 @@ class fourier:
             verbose=self.verbose,
         )
 
-    def predict(self, t, x0):
+    def predict(self, t: NDArray, x0: NDArray) -> NDArray:
         """
         Predicts the data from 1 to T.
 
@@ -203,7 +211,13 @@ class fourier:
 
         return np.dot(Omega, self.A)
 
-    def mode_decomposition(self, T, n_modes, plot=False, plot_n_last=None):
+    def mode_decomposition(
+        self,
+        T: int,
+        n_modes: int,
+        x0: NDArray,
+        n_dims: int = 1,
+    ) -> NDArray:
         """
         Returns first n modes of prediction built by Fourier algorithm
         :param T: TYPE int
@@ -220,23 +234,18 @@ class fourier:
 
         """
 
-        if plot_n_last is None:
-            plot_n_last = T
-        n_lim = max(0, T - plot_n_last)
-        t = np.arange(n_lim, T)
-        idxs = np.argsort(-np.abs(self.A.flatten()))
+        t = np.arange(T)
         arg = t[:, None] * self.freqs[None, :]
         freqs = np.concatenate(
             [np.cos(2 * np.pi * arg * 1000), np.sin(2 * np.pi * arg * 1000)], axis=-1
         )
         modes = []
-        for i in range(n_modes):
-            mode = freqs[:, idxs[i]]
-            modes.append(mode)
-            if plot:
-                plt.plot(mode, label="Mode {}".format(i + 1))
-        plt.xlabel("Time")
-        plt.ylabel("x")
-        plt.legend()
-        plt.show()
-        return modes
+        for j in range(n_dims):
+            modes_dim = []
+            for i in range(n_modes):
+                mode = freqs[:, i]
+                modes_dim.append(mode)
+            modes_dim = np.stack(modes_dim, axis=-1)
+            modes.append(modes_dim)
+        modes = np.stack(modes, axis=-2)
+        return modes[0]

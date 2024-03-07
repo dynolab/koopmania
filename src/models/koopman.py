@@ -3,13 +3,16 @@
 """
 @author: Henning Lange (helange@uw.edu)
 """
-import matplotlib.pyplot as plt
 import numpy as np
 import torch
+from numpy.typing import NDArray
 from torch import nn, optim
 
+from src.models.base import BaseModel
+from src.models.model_objs.base import BaseModelObject
 
-class koopman(nn.Module):
+
+class Koopman(BaseModel):
     r"""
 
     model_obj: an object that specifies the function f and how to optimize
@@ -39,21 +42,20 @@ class koopman(nn.Module):
     def __init__(
         self,
         name: str,
-        model_obj,
-        sample_num=12,
-        weight_decay=0.00,
-        l1_coef=0.0,
-        lr_theta=3e-3,
-        lr_omega=1e-7,
-        iterations=10,
-        interval=5,
-        cutoff=np.inf,
-        verbose=False,
-        hard_code_periods=None,
+        model_obj: BaseModelObject,
+        sample_num: int = 12,
+        weight_decay: float = 0.00,
+        l1_coef: float = 0.0,
+        lr_theta: float = 3e-3,
+        lr_omega: float = 1e-7,
+        iterations: int = 10,
+        interval: int = 5,
+        cutoff: float = np.inf,
+        verbose: bool = False,
+        hard_code_periods: list | None = None,
         **kwargs,
     ):
-        super(koopman, self).__init__()
-        self.name = name
+        super().__init__(name)
         self.num_freq = model_obj.num_freq
         self.iterations = iterations
         self.interval = interval
@@ -97,7 +99,7 @@ class koopman(nn.Module):
         self.lr_omega = lr_omega
         self.hard_code_periods = hard_code_periods
 
-    def sample_error(self, xt, which):
+    def sample_error(self, xt: NDArray, which: int) -> NDArray:
         """
 
         sample_error computes all temporally local losses within the first
@@ -107,7 +109,7 @@ class koopman(nn.Module):
         ----------
         xt : TYPE numpy.array
             Temporal data whose first dimension is time.
-        i : TYPE int
+        which : TYPE int
             Index of the entry of omega
 
         Returns
@@ -150,7 +152,9 @@ class koopman(nn.Module):
 
         return np.concatenate(errors, axis=0)
 
-    def reconstruct(self, errors, use_heuristic=True):
+    def reconstruct(
+        self, errors: NDArray, use_heuristic: bool = True
+    ) -> tuple[NDArray, NDArray]:
         e_fft = np.fft.fft(errors)
         E_ft = np.zeros(errors.shape[0] * self.sample_num, dtype=np.complex64)
 
@@ -168,7 +172,7 @@ class koopman(nn.Module):
 
         return E, E_ft
 
-    def fft(self, xt, i):
+    def fft(self, xt: NDArray, i: int) -> tuple[NDArray, NDArray]:
         """
 
         fft first samples all temporaly local losses within the first period
@@ -213,7 +217,7 @@ class koopman(nn.Module):
 
         return E, E_ft
 
-    def sgd(self, xt, verbose=False):
+    def sgd(self, xt: NDArray) -> float:
         """
 
         sgd performs a single epoch of stochastic gradient descent on parameters
@@ -223,8 +227,7 @@ class koopman(nn.Module):
         ----------
         xt : TYPE numpy.array
             Temporal data whose first dimension is time.
-        verbose : TYPE boolean, optional
-            The default is False.
+
 
         Returns
         -------
@@ -261,12 +264,8 @@ class koopman(nn.Module):
             wt = ts_ * o
 
             k = torch.cat([torch.cos(wt), torch.sin(wt)], -1)
-            threshold = len(t)
-            diff = (2 * np.pi / omega - threshold).abs()
 
-            loss = (
-                torch.mean(self.model_obj(k, xt_t)) + self.l1_coef * (1 / diff).mean()
-            )
+            loss = torch.mean(self.model_obj(k, xt_t))
 
             opt.zero_grad()
             opt_omega.zero_grad()
@@ -282,7 +281,7 @@ class koopman(nn.Module):
 
         return np.mean(losses)
 
-    def fit(self, xt):
+    def fit(self, xt: NDArray) -> None:
         """
         Given a dataset, this function alternatively optimizes omega and
         parameters of f. Specifically, the algorithm performs interval many
@@ -298,8 +297,7 @@ class koopman(nn.Module):
         interval : TYPE, optional
             The interval at which omegas are updated, i.e. if
             interval is 5, then omegas are updated every 5 epochs. The default is 5.
-        verbose : TYPE boolean, optional
-            DESCRIPTION. The default is False.
+
 
         Returns
         -------
@@ -307,7 +305,7 @@ class koopman(nn.Module):
 
         """
         assert len(xt.shape) > 1, "Input data needs to be at least 2D"
-        losses = []
+        self.losses = []
         hard_coded_omegas = (
             2 * np.pi / torch.tensor(self.hard_code_periods)
             if self.hard_code_periods is not None
@@ -327,20 +325,18 @@ class koopman(nn.Module):
                 print("Omegas: ", self.omegas)
                 print("Period: ", 2 * np.pi / self.omegas)
 
-            l = self.sgd(xt, verbose=self.verbose)
+            l = self.sgd(xt)
             if self.verbose:
                 print("Loss: ", l)
-            losses.append(l)
+            self.losses.append(l)
 
-        return losses
-
-    def predict(self, t, x0):
+    def predict(self, t: NDArray, x0: NDArray) -> NDArray:
         """
         Predicts the data from 1 to T.
 
         Parameters
         ----------
-        T : TYPE int
+        t : TYPE int
             Prediction horizon
 
         Returns
@@ -363,8 +359,12 @@ class koopman(nn.Module):
         return mu.cpu().detach().numpy()
 
     def mode_decomposition(
-        self, T, n_modes, x0, n_dims=1, plot=False, plot_n_last=None
-    ):
+        self,
+        T: int,
+        n_modes: int,
+        x0: NDArray,
+        n_dims: int = 1,
+    ) -> NDArray:
         """
         Returns first n modes of prediction built by Koopman algorithm
         :param T: TYPE int
@@ -381,10 +381,7 @@ class koopman(nn.Module):
         size (T, n_modes)
 
         """
-        if plot_n_last is None:
-            plot_n_last = T
-        n_lim = max(0, T - plot_n_last)
-        t = torch.arange(n_lim, T, device=self.device) + 1
+        t = torch.arange(T, device=self.device) + 1
 
         ts_ = torch.unsqueeze(t, -1).type(torch.get_default_dtype())
 
@@ -395,34 +392,26 @@ class koopman(nn.Module):
 
         amps = self.model_obj.get_amplitudes()
         idxs = torch.argsort(-amps.abs(), dim=-1)
-        if plot:
-            for j in range(n_dims):
-                for i in range(n_modes):
-                    mode = modes[:, idxs[j, i]].detach().numpy()
-                    plt.plot(mode)
-                    plt.xlabel("Time")
-                    plt.title(f"Koopman mode {i} at dim {j}")
-                    plt.show()
 
         return modes[:, idxs[:n_dims, :n_modes]].detach().numpy()
 
 
-class coordinate_koopman(koopman):
+class CoordinateKoopman(Koopman):
     def __init__(
         self,
         name: str,
-        model_obj,
-        sample_num=12,
-        weight_decay=0.0,
-        l1_coef=0.0,
-        lr_theta=3e-3,
-        lr_omega=1e-7,
-        lr_mlp=3e-3,
-        iterations=10,
-        interval=5,
-        cutoff=np.inf,
-        verbose=False,
-        hard_code_periods=None,
+        model_obj: BaseModelObject,
+        sample_num: int = 12,
+        weight_decay: float = 0.0,
+        l1_coef: float = 0.0,
+        lr_theta: float = 3e-3,
+        lr_omega: float = 1e-7,
+        lr_mlp: float = 3e-3,
+        iterations: int = 10,
+        interval: int = 5,
+        cutoff: float = np.inf,
+        verbose: bool = False,
+        hard_code_periods: list | None = None,
         **kwargs,
     ):
         super().__init__(
@@ -442,7 +431,7 @@ class coordinate_koopman(koopman):
         )
         self.lr_mlp = lr_mlp
 
-    def sgd(self, xt, verbose=False):
+    def sgd(self, xt: NDArray) -> float:
         """
 
         sgd performs a single epoch of stochastic gradient descent on parameters
@@ -515,54 +504,8 @@ class coordinate_koopman(koopman):
 
             losses.append(loss.cpu().detach().numpy())
 
-        # if verbose:
+        # if self.verbose:
         #     print("Setting to", 2 * np.pi / omega)
-        print("V: ", V)
         self.omegas = omega.data
 
         return np.mean(losses)
-
-    def MAE(self, x, x_hat):
-        assert len(x) == len(x_hat)
-        return np.sum(np.abs(x - x_hat)) / len(x)
-
-    def MAPE(self, x, x_hat):
-        assert len(x) == len(x_hat)
-        return np.mean(np.abs((x - x_hat) / x))
-
-    def validate(self, val_data, train_through, horizon, metric="MAPE"):
-        total_pred = self.predict(train_through + horizon)
-        val_pred = total_pred[train_through:]
-        if metric == "MAPE":
-            return self.MAPE(val_data, val_pred)
-        elif metric == "MAE":
-            return self.MAE(val_data, val_pred)
-
-
-# def train(xt, train_through, horizon, freqs_list=None, metric="MAPE"):
-#     T = xt.shape[0]
-#     x_dim = xt.shape[1]
-#     x_train = xt[:train_through].reshape(-1, 1)
-#     x_val = xt[train_through : train_through + horizon].reshape(-1, 1)
-#     best_m = 1
-#     best_metric = np.inf
-#     metrics = []
-#     if freqs_list is None:
-#         m_freqs = np.arange(1, 11)
-#     for m in m_freqs:
-#         model = coordinate_koopman(
-#             multi_nn_mse(x_dim, m, fully_connected_mse(x_dim=1, num_freqs=1, n=64)),
-#             device="cpu",
-#         )
-#         model.fit(x_train, iterations=300)
-#         cur_metric = model.validate(x_val, train_through, horizon, metric=metric)
-#         metrics.append(cur_metric)
-#         if cur_metric < best_metric:
-#             best_m = m
-#
-#     final_model = coordinate_koopman(
-#         multi_nn_mse(x_dim, best_m, fully_connected_mse(x_dim=1, num_freqs=1, n=64)),
-#         device="cpu",
-#     )
-#     final_model.fit(xt.reshape(-1, 1), iterations=1000)
-#     return final_model, best_m, metrics

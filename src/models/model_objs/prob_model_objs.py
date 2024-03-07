@@ -8,13 +8,16 @@ from copy import deepcopy
 
 import numpy as np
 import torch
+from numpy.typing import NDArray
 from scipy.special import factorial
 from torch import nn
 
+from src.models.model_objs.base import BaseModelObject
 
-class ModelObject(nn.Module):
-    def __init__(self, num_freqs):
-        super(ModelObject, self).__init__()
+
+class ProbModelObject(BaseModelObject):
+    def __init__(self, num_freqs: list[int]):
+        super(ProbModelObject, self).__init__(num_freqs)
         self.num_freqs = num_freqs
         self.total_freqs = sum(num_freqs)
 
@@ -30,44 +33,17 @@ class ModelObject(nn.Module):
             self.param_idxs.append(idxs)
             cumul += num_freq
 
-    def forward(self, w, data, training_mask=None):
-        """
-        Forward computes the error.
-
-        Input:
-            y: temporal snapshots of the linear system
-                type: torch.tensor
-                dimensions: [T, (batch,) num_frequencies ]
-
-            x: data set
-                type: torch.tensor
-                dimensions: [T, ...]
-        """
-
-        raise NotImplementedError()
-
-    def decode(self, w):
-        """
-        Evaluates f at temporal snapshots y
-
-        Input:
-            w: temporal snapshots of the linear system
-                type: torch.tensor
-                dimensions: [T, (batch,) num_frequencies ]
-        """
-        raise NotImplementedError()
-
-    def mean(self, params):
+    def mean(self, params: tuple) -> torch.Tensor:
         """returns the mean of a distribution with the given params"""
         return params[0]
 
-    def std(self, params):
+    def std(self, params: tuple) -> NDArray:
         """returns the standard deviation of a distribution with the given params"""
         return np.ones(params[0].shape)
 
 
-class GEFComSkewNLL(ModelObject):
-    def __init__(self, x_dim, num_freqs, n):
+class GEFComSkewNLL(ProbModelObject):
+    def __init__(self, x_dim: int, num_freqs: list[int], n: int):
         """
         neural network that takes a vector of sines and cosines and produces a skew-normal distribution with parameters
         mu, sigma, and alpha (the outputs of the NN). trains using NLL.
@@ -91,7 +67,7 @@ class GEFComSkewNLL(ModelObject):
 
         self.norm = torch.distributions.normal.Normal(0, 1)
 
-    def decode(self, w):
+    def decode(self, w: torch.Tensor) -> tuple:
         w_mu = w[..., (*self.param_idxs[0], -1)]
         y1 = nn.Tanh()(self.l1_mu(w_mu))
         y2 = nn.Tanh()(self.l2_mu(y1))
@@ -111,7 +87,12 @@ class GEFComSkewNLL(ModelObject):
 
         return y, z, a
 
-    def forward(self, w, data, training_mask=None):
+    def forward(
+        self,
+        w: torch.Tensor,
+        data: torch.Tensor,
+        training_mask: torch.Tensor | None = None,
+    ) -> torch.Tensor:
         mu, sig, alpha = self.decode(w)
         if training_mask is None:
             y = mu
@@ -132,7 +113,7 @@ class GEFComSkewNLL(ModelObject):
         avg = torch.mean(losses, dim=-1)
         return avg
 
-    def _norm_logcdf(self, z):
+    def _norm_logcdf(self, z: torch.Tensor) -> torch.Tensor:
         if (z < -7).any():  # these result in NaNs otherwise
             print(
                 "THIS BATCH USING LOG CDF APPROXIMATION (large z-score can otherwise cause numerical instability)"
@@ -150,19 +131,19 @@ class GEFComSkewNLL(ModelObject):
 
         return ans
 
-    def mean(self, params):
+    def mean(self, params: tuple) -> torch.Tensor:
         mu, sigma, alpha = params
         delta = alpha / (1 + alpha**2) ** 0.5
         return mu + sigma * delta * (2 / np.pi) ** 0.5
 
-    def std(self, params):
+    def std(self, params: tuple) -> torch.Tensor:
         mu, sigma, alpha = params
         delta = alpha / (1 + alpha**2) ** 0.5
         return sigma * (1 - 2 * delta**2 / np.pi) ** 0.5
 
 
-class SkewNLLwithTime(ModelObject):
-    def __init__(self, x_dim, num_freqs, n=256):
+class SkewNLLwithTime(ProbModelObject):
+    def __init__(self, x_dim: int, num_freqs: list[int], n: int = 256):
         """
         neural network that takes a vector of sines and cosines and produces a skew-normal distribution with parameters
         mu, sigma, and alpha (the outputs of the NN). trains using NLL. Takes time as an input along with the vector of
@@ -187,7 +168,7 @@ class SkewNLLwithTime(ModelObject):
 
         self.norm = torch.distributions.normal.Normal(0, 1)
 
-    def decode(self, w):
+    def decode(self, w: torch.Tensor) -> tuple:
         w_mu = w[..., (*self.param_idxs[0], -1)]
         y1 = nn.Tanh()(self.l1_mu(w_mu))
         y2 = nn.Tanh()(self.l2_mu(y1))
@@ -207,7 +188,12 @@ class SkewNLLwithTime(ModelObject):
 
         return y, z, a
 
-    def forward(self, w, data, training_mask=None):
+    def forward(
+        self,
+        w: torch.Tensor,
+        data: torch.Tensor,
+        training_mask: torch.Tensor | None = None,
+    ) -> torch.Tensor:
         mu, sig, alpha = self.decode(w)
         if training_mask is None:
             y = mu
@@ -228,7 +214,7 @@ class SkewNLLwithTime(ModelObject):
         avg = torch.mean(losses, dim=-1)
         return avg
 
-    def _norm_logcdf(self, z):
+    def _norm_logcdf(self, z: torch.Tensor) -> torch.Tensor:
         if (z < -7).any():  # these result in NaNs otherwise
             # print("THIS BATCH USING LOG CDF APPROXIMATION (large z-score can otherwise cause numerical instability)")
             # https://stats.stackexchange.com/questions/106003/approximation-of-logarithm-of-standard-normal-cdf-for-x0/107548#107548?newreg=5e5f6365aa7046aba1c447e8ae263fec
@@ -244,19 +230,19 @@ class SkewNLLwithTime(ModelObject):
 
         return ans
 
-    def mean(self, params):
+    def mean(self, params: tuple) -> torch.Tensor:
         mu, sigma, alpha = params
         delta = alpha / (1 + alpha**2) ** 0.5
         return mu + sigma * delta * (2 / np.pi) ** 0.5
 
-    def std(self, params):
+    def std(self, params: tuple) -> torch.Tensor:
         mu, sigma, alpha = params
         delta = alpha / (1 + alpha**2) ** 0.5
         return sigma * (1 - 2 * delta**2 / np.pi) ** 0.5
 
 
-class SkewNormalNLL(ModelObject):
-    def __init__(self, x_dim, num_freqs, n):
+class SkewNormalNLL(ProbModelObject):
+    def __init__(self, x_dim: int, num_freqs: list[int], n: int):
         """
         neural network that takes a vector of sines and cosines and produces a skew-normal distribution with parameters
         mu, sigma, and alpha (the outputs of the NN). trains using NLL.
@@ -280,7 +266,7 @@ class SkewNormalNLL(ModelObject):
 
         self.norm = torch.distributions.normal.Normal(0, 1)
 
-    def decode(self, w):
+    def decode(self, w: torch.Tensor) -> tuple:
         w_mu = w[..., self.param_idxs[0]]
         y1 = nn.Tanh()(self.l1_mu(w_mu))
         y2 = nn.Tanh()(self.l2_mu(y1))
@@ -300,7 +286,12 @@ class SkewNormalNLL(ModelObject):
 
         return y, z, a
 
-    def forward(self, w, data, training_mask=None):
+    def forward(
+        self,
+        w: torch.Tensor,
+        data: torch.Tensor,
+        training_mask: torch.Tensor | None = None,
+    ) -> torch.Tensor:
         mu, sig, alpha = self.decode(w)
         if training_mask is None:
             y = mu
@@ -321,7 +312,7 @@ class SkewNormalNLL(ModelObject):
         avg = torch.mean(losses, dim=-1)
         return avg
 
-    def _norm_logcdf(self, z):
+    def _norm_logcdf(self, z: torch.Tensor) -> torch.Tensor:
         if (z < -7).any():  # these result in NaNs otherwise
             # print("THIS BATCH USING LOG CDF APPROXIMATION (large z-score can otherwise cause numerical instability)")
             # https://stats.stackexchange.com/questions/106003/approximation-of-logarithm-of-standard-normal-cdf-for-x0/107548#107548?newreg=5e5f6365aa7046aba1c447e8ae263fec
@@ -342,14 +333,14 @@ class SkewNormalNLL(ModelObject):
         delta = alpha / (1 + alpha**2) ** 0.5
         return mu + sigma * delta * (2 / np.pi) ** 0.5
 
-    def std(self, params):
+    def std(self, params: tuple) -> torch.Tensor:
         mu, sigma, alpha = params
         delta = alpha / (1 + alpha**2) ** 0.5
         return sigma * (1 - 2 * delta**2 / np.pi) ** 0.5
 
 
-class NormalNLL(ModelObject):
-    def __init__(self, x_dim, num_freqs, n=128, n2=64):
+class NormalNLL(ProbModelObject):
+    def __init__(self, x_dim: int, num_freqs: list[int], n: int = 128, n2: int = 64):
         """
         Negative Log Likelihood neural network assuming Gaussian distribution of x at every point in time.
         Trains using NLL and trains mu and sigma separately to prevent
@@ -370,7 +361,7 @@ class NormalNLL(ModelObject):
         self.l3_sig = nn.Linear(n2, 2 * self.num_freqs[1])
         self.l4_sig = nn.Linear(2 * self.num_freqs[1], x_dim)
 
-    def decode(self, w):
+    def decode(self, w: torch.Tensor) -> tuple:
         w_mu = w[..., self.param_idxs[0]]
         y1 = nn.Tanh()(self.l1_mu(w_mu))
         y2 = nn.Tanh()(self.l2_mu(y1))
@@ -385,7 +376,7 @@ class NormalNLL(ModelObject):
 
         return y, z
 
-    def get_modes_mu(self, w):
+    def get_modes_mu(self, w: torch.Tensor) -> torch.Tensor:
         w_mu = w
         y1 = nn.Tanh()(self.l1_mu(w_mu))
         y2 = nn.Tanh()(self.l2_mu(y1))
@@ -393,7 +384,7 @@ class NormalNLL(ModelObject):
 
         return y3
 
-    def get_modes_sig(self, w):
+    def get_modes_sig(self, w: torch.Tensor) -> torch.Tensor:
         w_sigma = w
         z1 = nn.Tanh()(self.l1_sig(w_sigma))
         z2 = nn.Tanh()(self.l2_sig(z1))
@@ -401,18 +392,23 @@ class NormalNLL(ModelObject):
         # z = 10 * nn.Softplus()(z3)
         return z3
 
-    def get_modes(self, x):
+    def get_modes(self, x: torch.Tensor) -> torch.Tensor:
         x1 = x[..., self.param_idxs[0]]
         x2 = x[..., self.param_idxs[1]]
         return [self.get_modes_mu(x1), self.get_modes_sig(x2)]
 
-    def get_amplitudes(self):
-        return [
+    def get_amplitudes(self) -> tuple:
+        return (
             self.l4_mu.state_dict()["weight"],
             self.l4_sig.state_dict()["weight"],
-        ]
+        )
 
-    def forward(self, w, data, training_mask=None):
+    def forward(
+        self,
+        w: torch.Tensor,
+        data: torch.Tensor,
+        training_mask: torch.Tensor | None = None,
+    ) -> torch.Tensor:
         mu, sig = self.decode(w)
         if training_mask is None:
             y = mu
@@ -426,15 +422,15 @@ class NormalNLL(ModelObject):
         avg = torch.mean(losses, dim=-1)
         return avg
 
-    def mean(self, params):
+    def mean(self, params: tuple) -> torch.Tensor:
         return params[0]
 
-    def std(self, params):
+    def std(self, params: tuple) -> torch.Tensor:
         return params[1]
 
 
-class ConwayMaxwellPoissonNLL(ModelObject):
-    def __init__(self, x_dim, num_freqs, n, terms=20):
+class ConwayMaxwellPoissonNLL(ProbModelObject):
+    def __init__(self, x_dim: int, num_freqs: list[int], n: int, terms: int = 20):
         """
         Negative Log Likelihood neural network assuming Conway Maxwell Poisson distribution of x at every point in time.
         This is a generalization of the discrete Poisson distribution. Trains using NLL.
@@ -454,7 +450,7 @@ class ConwayMaxwellPoissonNLL(ModelObject):
 
         self.terms = terms
 
-    def decode(self, w):
+    def decode(self, w: torch.Tensor) -> tuple:
         w_rate = w[..., self.param_idxs[0]]
         rate1 = nn.Tanh()(self.l1_rate(w_rate))
         rate2 = nn.Tanh()(self.l2_rate(rate1))
@@ -467,7 +463,12 @@ class ConwayMaxwellPoissonNLL(ModelObject):
 
         return rate, v
 
-    def forward(self, w, data, training_mask=None):
+    def forward(
+        self,
+        w: torch.Tensor,
+        data: torch.Tensor,
+        training_mask: torch.Tensor | None = None,
+    ) -> torch.Tensor:
         assert (
             training_mask is None
         ), "Training masks won't help when using a CMP distribution"
@@ -477,23 +478,25 @@ class ConwayMaxwellPoissonNLL(ModelObject):
         avg = torch.mean(losses, dim=-1)
         return avg
 
-    def _Z(self, rate, v):
+    def _Z(self, rate: torch.Tensor, v: torch.Tensor) -> torch.Tensor:
         j = torch.arange(self.terms)
         return torch.sum(rate**j / (factorial(j) ** v))
 
-    def _logCMPpmf(self, x, rate, v):
+    def _logCMPpmf(
+        self, x: torch.Tensor, rate: torch.Tensor, v: torch.Tensor
+    ) -> torch.Tensor:
         return (
             x * torch.log(rate)
             - v * x.apply_(self._log_factorial)
             - torch.log(self._Z(rate, v))
         )
 
-    def _log_factorial(self, x):
+    def _log_factorial(self, x: torch.Tensor) -> torch.Tensor:
         # log(x(x-1)(x-2)...(2)(1)) = log(x) + log(x-1) + ... + log(2) + log(1)
         # the hard part is vectorizing it, therefore it only takes scalar inputs
         return torch.sum(torch.log(torch.arange(1, x + 1)))
 
-    def mean(self, params, num_terms=100):
+    def mean(self, params: tuple, num_terms: int = 100) -> float:
         rate = params[0]
         v = params[1]
         terms = np.array(
@@ -504,7 +507,7 @@ class ConwayMaxwellPoissonNLL(ModelObject):
         )
         return np.sum(terms)
 
-    def std(self, params, num_terms=100):
+    def std(self, params: tuple, num_terms: int = 100) -> float:
         rate = params[0]
         v = params[1]
         terms = np.array(
@@ -516,13 +519,13 @@ class ConwayMaxwellPoissonNLL(ModelObject):
         var = np.sum(terms) - self.mean(params, num_terms=num_terms) ** 2
         return np.sqrt(var)
 
-    def _npZ(self, rate, v):
+    def _npZ(self, rate: torch.Tensor, v: torch.Tensor) -> float:
         j = np.arange(100)
         return np.sum(rate**j / (factorial(j) ** v))
 
 
-class GammaNLL(ModelObject):
-    def __init__(self, x_dim, num_freqs, n):
+class GammaNLL(ProbModelObject):
+    def __init__(self, x_dim: int, num_freqs: list[int], n: int):
         """
         Negative Log Likelihood neural network assuming Gamma distribution of x at every point in time.
         Trains using NLL
@@ -540,7 +543,7 @@ class GammaNLL(ModelObject):
         self.l2_a = nn.Linear(n, 64)
         self.l3_a = nn.Linear(64, x_dim)
 
-    def decode(self, w):
+    def decode(self, w: torch.Tensor) -> tuple:
         w_rate = w[..., self.param_idxs[0]]
         rate1 = nn.Tanh()(self.l1_rate(w_rate))
         rate2 = nn.Tanh()(self.l2_rate(rate1))
@@ -553,7 +556,12 @@ class GammaNLL(ModelObject):
 
         return rate, a
 
-    def forward(self, w, data, training_mask=None):
+    def forward(
+        self,
+        w: torch.Tensor,
+        data: torch.Tensor,
+        training_mask: torch.Tensor | None = None,
+    ) -> torch.Tensor:
         assert (
             training_mask is None
         ), "Training masks won't help when using a Gamma distribution"
@@ -563,15 +571,15 @@ class GammaNLL(ModelObject):
         avg = torch.mean(losses, dim=-1)
         return avg
 
-    def mean(self, params):
+    def mean(self, params: tuple) -> torch.Tensor:
         return params[1] / params[0]
 
-    def std(self, params):
+    def std(self, params: tuple) -> torch.Tensor:
         return np.sqrt(params[1] / params[0] ** 2)
 
 
-class PoissonNLL(ModelObject):
-    def __init__(self, x_dim, num_freqs, n):
+class PoissonNLL(ProbModelObject):
+    def __init__(self, x_dim: int, num_freqs: list[int], n: int):
         """
         Negative Log Likelihood neural network assuming Poisson distribution of x at every point in time.
         Trains using NLL
@@ -585,7 +593,7 @@ class PoissonNLL(ModelObject):
         self.l2_rate = nn.Linear(n, 64)
         self.l3_rate = nn.Linear(64, x_dim)
 
-    def decode(self, w):
+    def decode(self, w: torch.Tensor) -> tuple:
         w_rate = w[..., self.param_idxs[0]]
         rate1 = nn.Tanh()(self.l1_rate(w_rate))
         rate2 = nn.Tanh()(self.l2_rate(rate1))
@@ -593,7 +601,12 @@ class PoissonNLL(ModelObject):
 
         return (rate,)
 
-    def forward(self, w, data, training_mask=None):
+    def forward(
+        self,
+        w: torch.Tensor,
+        data: torch.Tensor,
+        training_mask: torch.Tensor | None = None,
+    ) -> torch.Tensor:
         assert (
             training_mask is None
         ), "Poisson distributions don't support training masks"
@@ -603,15 +616,15 @@ class PoissonNLL(ModelObject):
         avg = torch.mean(losses, dim=-1)
         return avg
 
-    def mean(self, params):
+    def mean(self, params: tuple) -> torch.Tensor:
         return params[0]
 
-    def std(self, params):
+    def std(self, params: tuple) -> torch.Tensor:
         return np.sqrt(params[0])
 
 
-class MultiNormalNLL(ModelObject):
-    def __init__(self, x_dim, num_freqs, base_model):
+class MultiNormalNLL(ProbModelObject):
+    def __init__(self, x_dim: int, num_freqs: list[int], base_model: ProbModelObject):
         super(MultiNormalNLL, self).__init__(num_freqs)
         self.num_freq = num_freqs
         self.x_dim = x_dim
@@ -628,7 +641,7 @@ class MultiNormalNLL(ModelObject):
             self.networks_sigma.append(model)
         self.mlp_sigma = nn.Linear(2 * num_freqs[1], x_dim)
 
-    def get_modes(self, x):
+    def get_modes(self, x: torch.Tensor) -> tuple:
         x = x.reshape(*x.shape[:-1], 2, -1).transpose(-2, -1)
         y = []
         for i in range(self.num_freq[0]):
@@ -649,13 +662,13 @@ class MultiNormalNLL(ModelObject):
         sig = torch.cat(z, -2)
         return mu.flatten(-2), sig.flatten(-2)
 
-    def get_amplitudes(self):
+    def get_amplitudes(self) -> tuple:
         return (
             self.mlp_mu.state_dict()["weight"],
             self.mlp_sigma.state_dict()["weight"],
         )
 
-    def decode(self, x):
+    def decode(self, x: torch.Tensor) -> tuple:
         x = x.reshape(*x.shape[:-1], 2, -1).transpose(-2, -1)
         y = []
         for i in range(self.num_freq[0]):
@@ -678,7 +691,12 @@ class MultiNormalNLL(ModelObject):
         sig = 10 * nn.Softplus()(self.mlp_sigma(sig.flatten(-2)))
         return mu, sig
 
-    def forward(self, w, data, training_mask=None):
+    def forward(
+        self,
+        w: torch.Tensor,
+        data: torch.Tensor,
+        training_mask: torch.Tensor | None = None,
+    ) -> torch.Tensor:
         mu, sig = self.decode(w)
         if training_mask is None:
             y = mu
@@ -692,8 +710,8 @@ class MultiNormalNLL(ModelObject):
         avg = torch.mean(losses, dim=-1)
         return avg
 
-    def mean(self, params):
+    def mean(self, params: tuple) -> torch.Tensor:
         return params[0]
 
-    def std(self, params):
+    def std(self, params: tuple) -> torch.Tensor:
         return params[1]

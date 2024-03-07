@@ -1,14 +1,20 @@
 import csv
 import os
-from os.path import join as pjoin
-from typing import Optional
 
 import matplotlib.pyplot as plt
 from numpy.typing import NDArray
 from omegaconf.dictconfig import DictConfig
 
 
-def plot_mode(t, mode, num, dim, param=None, model=None, ax=None):
+def plot_mode(
+    t: NDArray,
+    mode: NDArray,
+    num: int,
+    dim: int,
+    param: int | None = None,
+    model=None,
+    ax=None,
+) -> None:
     if ax is None:
         _, ax = plt.subplots()
     ax.plot(t, mode)
@@ -23,7 +29,7 @@ def plot_ts(
     model: str,
     y_window: int,
     ax=None,
-):
+) -> None:
     if not ax:
         _, ax = plt.subplots()
     ax.plot(
@@ -37,7 +43,7 @@ def plot_ts(
     ax.axvline(x=t[-y_window], color="black", linestyle="--", alpha=0.6)
 
 
-def log_scores(cfg: DictConfig, metrics: dict[str, float]):
+def log_scores(cfg: DictConfig, metrics: dict[str, float]) -> None:
     log_results = {}
     for metric_name, metric in metrics.items():
         log_results[metric_name] = metric
