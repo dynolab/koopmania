@@ -1,11 +1,14 @@
 import hydra
 import numpy as np
 from hydra.utils import instantiate
+from omegaconf.dictconfig import DictConfig
 from sklearn.metrics import mean_absolute_percentage_error as mape
 from sklearn.model_selection import TimeSeriesSplit
 
+from bin.load_data import load_data
 from bin.plotting.plot_ts import plot_forecast
 from bin.plotting.render_env import render_env
+from src.models.base import BaseModel
 from src.postprocessing.spectral_and_modes_analysis import plot_modes
 from src.utils.common import get_config_path, transform_time
 from src.utils.results import log_scores
@@ -13,10 +16,9 @@ from src.utils.results import log_scores
 CONFIG_NAME = "config"
 
 
-def run_experiment(cfg):
+def run_experiment(cfg: DictConfig) -> None:
     np.random.seed(cfg.seed)
-    loader = instantiate(cfg.dataset)
-    t, time_series = loader.load()
+    t, time_series = load_data(cfg)
     t_fixed = transform_time(t)
     splitter = TimeSeriesSplit(n_splits=2, test_size=cfg.y_window)
     t_train, t_test, x_train, x_test = None, None, None, None
@@ -27,7 +29,7 @@ def run_experiment(cfg):
             time_series[train_idx],
             time_series[test_idx],
         )
-    model = instantiate(cfg.model)
+    model: BaseModel = instantiate(cfg.model)
     model.fit(x_train)
     x_0 = time_series[0]
     plot_modes(
