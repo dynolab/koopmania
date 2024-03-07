@@ -1,7 +1,7 @@
 defaults:
   - _self_
   - user_settings: user_settings
-  - model: dmd
+  - model: coord_prob_koopman
   - dataset: navier_stokes
 
 results_dir: ${user_settings.hydra_dir}
@@ -15,8 +15,8 @@ hydra:
   run:
     dir: ${hydra_dir}
 #
-T: 1
-delta_t: 1e-4
+T: 300
+delta_t: 0.1
 
 y_window: 300
 

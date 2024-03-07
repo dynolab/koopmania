@@ -1,4 +1,4 @@
-_target_: src.models.fourier.fourier
+_target_: src.models.fourier.Fourier
 name: fourier
 num_freqs: 10
 device: cpu

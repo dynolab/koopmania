@@ -25,4 +25,4 @@ lr_omega: 1e-7
 lr_mlp: 3e-3
 verbose: true
 hard_code_periods:
-iterations: 500
+iterations: 100

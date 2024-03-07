@@ -2,12 +2,10 @@ _target_: src.data_loaders.quasi_periodic_data.SyntheticGenerator
 
 name: sin
 
-#dataset_loader:
-#data_name: sin
 T: ${T}
 ds: ${delta_t}
 x_dim: 1
-add_noise: True
+add_noise: false
 sigma: 0.1
-n_sines: 5
-#freq: 3
+n_sines: 1
+#freq: 5

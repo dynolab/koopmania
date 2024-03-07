@@ -1,21 +1,21 @@
-_target_: src.models.koopman.coordinate_koopman
+_target_: src.models.koopman.CoordinateKoopman
 _recursive_: true
 name: coordinate_koopman
 model_obj:
-#  _resursive_: true
-  _target_: src.models.model_objs.model_objs.multi_nn_mse
+  _target_: src.models.model_objs.model_objs.MultiNNMse
   x_dim: ${dataset.x_dim}
   num_freqs: 10
   base_model:
-    _target_: src.models.model_objs.model_objs.fully_connected_mse
+    _target_: src.models.model_objs.model_objs.FullyConnectedMse
     x_dim: ${dataset.x_dim}
     num_freqs: 1
-    n: 32
+    n: 64
 sample_num: 12
 weight_decay: 0.00
-l1_coef: 0.08
+l1_coef: 0.5
 lr_theta: 3e-3
-lr_omega: 1e-7
+lr_omega: 1e-6
 lr_mlp: 3e-3
+verbose: true
 hard_code_periods:
-iterations: 500
+iterations: 200

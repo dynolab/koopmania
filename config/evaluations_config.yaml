@@ -17,3 +17,5 @@ metrics_file: "stats.csv"
 
 experiments_plots_dir: "experiments_plots"
 evaluation_dirs:
+  - "2024-03-01/17-21-14"
+  - "2024-03-01/17-23-27"
