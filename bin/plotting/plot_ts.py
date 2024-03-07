@@ -21,7 +21,7 @@ def plot_forecast(
     save: Optional[DictConfig],
     show: Optional,
     n_plots: Optional[int],
-):
+) -> None:
     if n_plots is not None:
         sample_idx = np.random.randint(0, pred_ts.shape[1], n_plots)
         iterator = sample_idx

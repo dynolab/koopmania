@@ -2,10 +2,12 @@ import numpy as np
 from PIL import Image
 
 
-def render_env(T, render_path, save_path, name: str):
+def render_env(T, ds, render_path, save_path, name: str) -> None:
     frames = []
-    for frame_number in np.arange(0, T):
-        frame = Image.open(rf"{render_path}\plot_{frame_number}" + ".png")
+    for frame_number in np.arange(0, T, ds):
+        frame = Image.open(
+            rf"{render_path}\plot_{round(frame_number, 1)}".replace(".", ",") + ".png"
+        )
         frames.append(frame)
 
     frames[0].save(
