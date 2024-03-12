@@ -22,4 +22,4 @@ if __name__ == "__main__":
         config_path=str(get_config_path()),
         config_name=CONFIG_NAME,
         version_base="1.2",
-    )(load_data())()
+    )(load_data)()

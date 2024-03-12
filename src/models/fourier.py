@@ -21,8 +21,16 @@ class Fourier(BaseModel):
         Example: cpu, cuda:0
         default = 'cpu'
 
-    """
+    learning_rate: TYPE float, optional
+    The default is 1E-5.
 
+    iterations: TYPE int, optional
+    The default is 1000.
+
+    verbose: TYPE optional
+    The default is False.
+
+    """
     def __init__(
         self,
         name: str,
@@ -99,9 +107,7 @@ class Fourier(BaseModel):
     def sgd(
         self,
         xt: NDArray,
-        iterations: int = 1000,
-        learning_rate: float = 3e-9,
-        verbose: bool = False,
+        learning_rate: float = 3e-9
     ) -> None:
         """
         Given temporal data xt, sgd improves the initial guess of omega
@@ -111,12 +117,9 @@ class Fourier(BaseModel):
         ----------
         xt : TYPE numpy.array
             Temporal data of dimensions [T, ...]
-        iterations : TYPE int, optional
-            Number of SGD iterations to perform. The default is 1000.
+
         learning_rate : TYPE float, optional
             Note that the learning rate should decrease with T. The default is 3E-9.
-        verbose : TYPE, optional
-            The default is False.
 
         Returns
         -------
@@ -136,9 +139,8 @@ class Fourier(BaseModel):
             -1,
         )
 
-        loss = 0
 
-        for i in range(iterations):
+        for i in range(self.iterations):
             Omega = torch.cat(
                 [torch.cos(t * 2 * np.pi * freqs), torch.sin(t * 2 * np.pi * freqs)], -1
             )
@@ -153,8 +155,8 @@ class Fourier(BaseModel):
             o2.step()
 
             loss = loss.cpu().detach().numpy()
-            if verbose:
-                print(loss)
+            if self.verbose:
+                print(f"Loss at step {i}:", loss)
 
         self.A = A.cpu().detach().numpy()
         self.freqs = freqs.cpu().detach().numpy()
@@ -166,12 +168,6 @@ class Fourier(BaseModel):
         ----------
         xt : TYPE numpy.array
             Temporal data of dimensions [T, ...]
-        learning_rate : TYPE float, optional
-            The default is 1E-5.
-        iterations : TYPE int, optional
-            DESCRIPTION. The default is 1000.
-        verbose : TYPE, optional
-            The default is False.
 
         Returns
         -------
@@ -182,9 +178,7 @@ class Fourier(BaseModel):
         self.fft(xt)
         self.sgd(
             xt,
-            iterations=self.iterations,
             learning_rate=self.learning_rate / xt.shape[0],
-            verbose=self.verbose,
         )
 
     def predict(self, t: NDArray, x0: NDArray) -> NDArray:
@@ -193,17 +187,18 @@ class Fourier(BaseModel):
 
         Parameters
         ----------
-        T : TYPE int
-            Prediction horizon
+        t : TYPE NDArray
+            Prediction time
+
+        x0: TYPE NDArray
+        Starting point (not used)
 
         Returns
         -------
         TYPE numpy.array
-            xhat from 0 to T.
+            xhat from 0 to len(t).
 
         """
-        t0 = int(t[0] / (t[1] - t[0]))
-        t = np.arange(t0, t0 + len(t))
         t = np.expand_dims(t, -1)
         Omega = np.concatenate(
             [np.cos(t * 2 * np.pi * self.freqs), np.sin(t * 2 * np.pi * self.freqs)], -1
@@ -214,35 +209,26 @@ class Fourier(BaseModel):
     def mode_decomposition(
         self,
         T: int,
-        n_modes: int,
-        x0: NDArray,
-        n_dims: int = 1,
+        x0: NDArray
     ) -> NDArray:
         """
         Returns first n modes of prediction built by Fourier algorithm
         :param T: TYPE int
         prediction horizon
-        :param n_modes: TYPE int
-        number of modes to return
-        :param plot: TYPE bool
-        whether to build a plot
-        :param plot_n_last: TYPE int
-        default None
-        if not None, plot only last n steps in prediction
-        :return: TYPE list[np.array]
-        size n_modes[(T,)]
+
+        :param x0: TYPE NDArray
+        starting point (not used)
 
         """
-
         t = np.arange(T)
         arg = t[:, None] * self.freqs[None, :]
         freqs = np.concatenate(
             [np.cos(2 * np.pi * arg * 1000), np.sin(2 * np.pi * arg * 1000)], axis=-1
         )
         modes = []
-        for j in range(n_dims):
+        for j in range(x0.shape[0]):
             modes_dim = []
-            for i in range(n_modes):
+            for i in range(2 * self.num_freqs):
                 mode = freqs[:, i]
                 modes_dim.append(mode)
             modes_dim = np.stack(modes_dim, axis=-1)

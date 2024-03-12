@@ -11,25 +11,6 @@ class ModelObject(BaseModelObject):
         super(ModelObject, self).__init__(num_freq)
         self.x_dim = x_dim
 
-    def get_modes(self, x: torch.Tensor) -> torch.Tensor:
-        """
-        Returns modes as an output of neural network before the final fully-connected layer
-        :param x: data set
-                    type: torch.tensor
-                    dimensions: [T, ...]
-        :return: torch.tensor
-                    dimensions: [T, ..., 2*num_freqs]
-        """
-        raise NotImplementedError()
-
-    def get_amplitudes(self) -> nn.Parameter:
-        """
-        Returns amplitudes corresponding to the weights of final fully-connected layer
-        :return: torch.tensor
-                    dimensions: [2*num_freqs, x_dim]
-        """
-        raise NotImplementedError()
-
 
 class FullyConnectedMse(ModelObject):
     def __init__(self, x_dim: int, num_freqs: int, n: int):
@@ -50,7 +31,7 @@ class FullyConnectedMse(ModelObject):
     def get_amplitudes(self) -> nn.Parameter:
         return self.state_dict()["amplitudes.weight"]
 
-    def decode(self, x: torch.Tensor) -> torch.Tensor:
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         o0 = x
         o1 = nn.Tanh()(self.l1(o0))
         o2 = nn.Tanh()(self.l2(o1))
@@ -58,8 +39,8 @@ class FullyConnectedMse(ModelObject):
         o4 = self.amplitudes(o3)
         return o4
 
-    def forward(self, y: torch.Tensor, x: torch.Tensor) -> torch.Tensor:
-        xhat = self.decode(y)
+    def calc_loss(self, y: torch.Tensor, x: torch.Tensor) -> torch.Tensor:
+        xhat = self.forward(y)
         return torch.mean((xhat - x) ** 2, dim=-1)
 
 
@@ -72,7 +53,7 @@ class MultiNNMse(ModelObject):
             self.networks.append(model)
         self.mlp = nn.Linear(2 * num_freqs, x_dim, bias=False)
 
-    def get_modes(self, x):
+    def get_modes(self, x: torch.Tensor) -> torch.Tensor:
         x = x.reshape(*x.shape[:-1], 2, -1).transpose(-2, -1)
         y = []
         for i in range(self.num_freq):
@@ -80,10 +61,10 @@ class MultiNNMse(ModelObject):
         y = torch.cat(y, -1)
         return y
 
-    def get_amplitudes(self):
+    def get_amplitudes(self) -> nn.Parameter:
         return self.mlp.state_dict()["weight"]
 
-    def decode(self, x):
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         x = x.reshape(*x.shape[:-1], 2, -1).transpose(-2, -1)
         y = []
         for i in range(self.num_freq):
@@ -94,8 +75,8 @@ class MultiNNMse(ModelObject):
         y = self.mlp(y.flatten(-2))
         return y
 
-    def forward(self, y, x):
-        xhat = self.decode(y)
+    def calc_loss(self, y: torch.Tensor, x: torch.Tensor) -> torch.Tensor:
+        xhat = self.forward(y)
         return torch.mean((xhat - x) ** 2, dim=-1)
 
 
@@ -126,7 +107,7 @@ class ObservablesLib(ModelObject):
 
         self.mlp = nn.Linear(latent_dim, x_dim)
 
-    def decode(self, x: torch.Tensor) -> torch.Tensor:
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         if len(x.shape) == 2:
             x = x.view(x.shape[0], 1, x.shape[1])
         encoder_out = self.model(x)
@@ -156,8 +137,8 @@ class ObservablesLib(ModelObject):
         out = self.mlp(embedding)
         return out
 
-    def forward(self, y: torch.Tensor, x: torch.Tensor) -> torch.Tensor:
-        xhat = self.decode(y)
+    def calc_loss(self, y: torch.Tensor, x: torch.Tensor) -> torch.Tensor:
+        xhat = self.forward(y)
         if len(x.shape) == 2:
             xhat = xhat.flatten(-2)
         return torch.mean((xhat - x) ** 2, dim=-1)

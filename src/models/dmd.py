@@ -46,13 +46,13 @@ class DMD(BaseModel):
         return np.transpose(t_dyn)
 
     def mode_decomposition(
-        self, T: int, n_modes: int, x0: NDArray, n_dims: int = 1
+        self, T: int, x0: NDArray
     ) -> NDArray:
-        modes = self.Psi[:, :n_modes]
+        modes = self.Psi
         dyn_modes = []
-        for j in range(n_dims):
+        for j in range(x0.shape[0]):
             dyn_modes_dim = []
-            for i in range(n_modes):
+            for i in range(self.rank):
                 mode = modes[j : j + 1, i : i + 1]
                 sgm = np.diag(self.Lambda)[i]
                 b = np.dot(np.linalg.pinv(mode), x0[j])

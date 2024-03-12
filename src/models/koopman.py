@@ -140,7 +140,7 @@ class Koopman(BaseModel):
             wt = wt[:, None] + pi_block[None]
             k = torch.cat([torch.cos(wt), torch.sin(wt)], -1)
             loss = (
-                self.model_obj(k, xt[i * batch : (i + 1) * batch, None])
+                self.model_obj.calc_loss(k, xt[i * batch : (i + 1) * batch, None])
                 .cpu()
                 .detach()
                 .numpy()
@@ -265,7 +265,7 @@ class Koopman(BaseModel):
 
             k = torch.cat([torch.cos(wt), torch.sin(wt)], -1)
 
-            loss = torch.mean(self.model_obj(k, xt_t))
+            loss = torch.mean(self.model_obj.calc_loss(k, xt_t))
 
             opt.zero_grad()
             opt_omega.zero_grad()
@@ -352,33 +352,24 @@ class Koopman(BaseModel):
         k = torch.cat([torch.cos(ts_ * o), torch.sin(ts_ * o)], -1)
 
         if self.multi_gpu:
-            mu = self.model_obj.module.decode(k)
+            mu = self.model_obj.module(k)
         else:
-            mu = self.model_obj.decode(k)
+            mu = self.model_obj(k)
 
         return mu.cpu().detach().numpy()
 
     def mode_decomposition(
         self,
         T: int,
-        n_modes: int,
         x0: NDArray,
-        n_dims: int = 1,
     ) -> NDArray:
         """
         Returns first n modes of prediction built by Koopman algorithm
         :param T: TYPE int
         prediction horizon
-        :param n_modes: TYPE int
-        number of modes to return
-        :param plot: TYPE bool
-        whether to build a plot
-        The default is False
-        :param plot_n_last: TYPE int
-        default None
-        if not None, plot only last n steps in prediction
-        :return: TYPE np.array
-        size (T, n_modes)
+
+        :param x0: TYPE NDArray
+        starting point (not used)
 
         """
         t = torch.arange(T, device=self.device) + 1
@@ -393,7 +384,7 @@ class Koopman(BaseModel):
         amps = self.model_obj.get_amplitudes()
         idxs = torch.argsort(-amps.abs(), dim=-1)
 
-        return modes[:, idxs[:n_dims, :n_modes]].detach().numpy()
+        return modes[:, idxs].detach().numpy()
 
 
 class CoordinateKoopman(Koopman):
@@ -488,7 +479,7 @@ class CoordinateKoopman(Koopman):
 
             k = torch.cat([torch.cos(wt), torch.sin(wt)], -1)
             V = self.model_obj.mlp.weight
-            loss = torch.mean(self.model_obj(k, xt_t)) + self.l1_coef * (V.abs()).mean()
+            loss = torch.mean(self.model_obj.calc_loss(k, xt_t)) + self.l1_coef * (V.abs()).mean()
 
             for opt in opts:
                 opt.zero_grad()

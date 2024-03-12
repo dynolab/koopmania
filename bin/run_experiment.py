@@ -32,17 +32,15 @@ def run_experiment(cfg: DictConfig) -> None:
     model: BaseModel = instantiate(cfg.model)
     model.fit(x_train)
     x_0 = time_series[0]
-    plot_modes(
-        t,
-        model,
-        x_0,
-        num_modes=3,
-        num_dims=2,
-        plot_n_last=None,
-        ax=None,
-        show=True,
-        stochastic=True,
-    )
+    if cfg.modes is not None:
+        plot_modes(t,
+                   model,
+                   x_0,
+                   num_modes=cfg.modes.num_modes,
+                   num_dims=cfg.modes.num_dims,
+                   show=cfg.modes.show,
+                   stochastic=cfg.modes.stochastic
+                   )
     reconstr_ts = model.predict(t_train, x_0)
     x_1 = x_test[0]
     pred_ts = model.predict(t_test, x_1)
@@ -56,11 +54,7 @@ def run_experiment(cfg: DictConfig) -> None:
         "dataset": cfg.dataset.name,
     }
     log_scores(cfg, metric_dict)
-    with open("stats_kt.csv", "a") as f:
-        f.write(f"{x_test.shape[1]}")
-        f.write(" ")
-        f.write(f"{np.mean(mape_score)}")
-        f.write("\n")
+
     if cfg.plotting.plot:
         plot_forecast(
             t,
@@ -85,41 +79,3 @@ if __name__ == "__main__":
         config_name=CONFIG_NAME,
         version_base="1.2",
     )(run_experiment)()
-
-
-# t = np.load("../data/t_3.npy")
-# time_series = np.load("../data/ts_3.npy")
-
-# mask_idxs = np.random.randint(512 * 4, time_series.shape[1] - 512 * 4, size=500)
-# mask_idxs_list = []
-# for i in range(-3, 3):
-#     for j in range(-3, 3):
-#         mask_idxs_list.append(mask_idxs + 512 * j + i)
-#
-# mask_idxs = np.concatenate(mask_idxs_list)
-# dmd = DMD(10)
-# dmd.fit(time_series[:, mask_idxs])
-# x_0 = time_series[0, mask_idxs]
-# reconstr_dmd, DM = dmd.predict(t, x_0)
-# x_1 = time_series[-300, mask_idxs]
-# pred_dmd, _ = dmd.predict(t, x_1)
-# empty = np.empty((512, 512, 1601))
-# empty[:] = np.nan
-# palette = copy(plt.get_cmap("jet"))
-# palette.set_bad("white", 1.0)  # 1.0 represents not transparent
-#
-# levels = np.arange(-1, 1, 0.1)
-# levels[0] = -1 + 1e-5
-# norm = BoundaryNorm(levels, ncolors=palette.N)
-# for i in range(1300, empty.shape[2]):
-#     idx_1, idx_2 = mask_idxs // 512, mask_idxs % 512
-#     empty[idx_1, idx_2, i] = reconstr_dmd[i]
-#     # norm = TwoSlopeNorm(vmin=time_series.min(), vcenter=0, vmax=time_series.max())
-#     plt.imshow(empty[::-1, ::-1, i], norm=norm, cmap="jet")
-#     plt.title(f"t={round(t[i],1)}")
-#     plt.savefig(
-#         rf"C:\Users\mWX1298408\Documents\GitHub\koopmania\bin\render_dmd\plot_{i}".replace(
-#             ".", ","
-#         )
-#         + ".png"
-#     )

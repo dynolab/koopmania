@@ -19,6 +19,6 @@ class BaseModel(nn.Module):
 
     @abstractmethod
     def mode_decomposition(
-        self, T: int, n_modes: int, x0: NDArray, n_dims: int
-    ) -> NDArray:
+        self, T: int, x0: NDArray
+    ) -> NDArray | tuple | list:
         pass

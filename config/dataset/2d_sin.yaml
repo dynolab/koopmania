@@ -1,0 +1,15 @@
+_target_: src.data_loaders.2d_sin.TwoDimSin
+name: 2d_sin
+
+T: ${T}
+ds: ${delta_t}
+
+seed: ${seed}
+
+sample: 200
+x_dim: 200
+
+save_dir: ${datasets_root}/${dataset.name}
+data_path: ${dataset.save_dir}/blobs.npy
+render: ${render_path}
+render_name: 'blobs'

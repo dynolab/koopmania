@@ -36,10 +36,11 @@ def plot_modes(
     """
     t = np.arange(len(t))
     modes = model.mode_decomposition(
-        len(t), num_modes, x_0, num_dims, plot=False, plot_n_last=plot_n_last
+        len(t), x_0
     )
     if not stochastic:
         modes = [modes]
+    modes = [mode[:, :num_dims, :num_modes] for mode in modes]
     if ax is None:
         fig, ax = plt.subplots(
             num_dims * len(modes), num_modes, figsize=(15, 10), sharex=True

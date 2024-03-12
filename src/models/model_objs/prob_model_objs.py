@@ -67,7 +67,7 @@ class GEFComSkewNLL(ProbModelObject):
 
         self.norm = torch.distributions.normal.Normal(0, 1)
 
-    def decode(self, w: torch.Tensor) -> tuple:
+    def forward(self, w: torch.Tensor) -> tuple:
         w_mu = w[..., (*self.param_idxs[0], -1)]
         y1 = nn.Tanh()(self.l1_mu(w_mu))
         y2 = nn.Tanh()(self.l2_mu(y1))
@@ -87,13 +87,13 @@ class GEFComSkewNLL(ProbModelObject):
 
         return y, z, a
 
-    def forward(
+    def calc_loss(
         self,
         w: torch.Tensor,
         data: torch.Tensor,
         training_mask: torch.Tensor | None = None,
     ) -> torch.Tensor:
-        mu, sig, alpha = self.decode(w)
+        mu, sig, alpha = self.forward(w)
         if training_mask is None:
             y = mu
             z = sig
@@ -168,7 +168,7 @@ class SkewNLLwithTime(ProbModelObject):
 
         self.norm = torch.distributions.normal.Normal(0, 1)
 
-    def decode(self, w: torch.Tensor) -> tuple:
+    def forward(self, w: torch.Tensor) -> tuple:
         w_mu = w[..., (*self.param_idxs[0], -1)]
         y1 = nn.Tanh()(self.l1_mu(w_mu))
         y2 = nn.Tanh()(self.l2_mu(y1))
@@ -188,13 +188,13 @@ class SkewNLLwithTime(ProbModelObject):
 
         return y, z, a
 
-    def forward(
+    def calc_loss(
         self,
         w: torch.Tensor,
         data: torch.Tensor,
         training_mask: torch.Tensor | None = None,
     ) -> torch.Tensor:
-        mu, sig, alpha = self.decode(w)
+        mu, sig, alpha = self.forward(w)
         if training_mask is None:
             y = mu
             z = sig
@@ -266,7 +266,7 @@ class SkewNormalNLL(ProbModelObject):
 
         self.norm = torch.distributions.normal.Normal(0, 1)
 
-    def decode(self, w: torch.Tensor) -> tuple:
+    def forward(self, w: torch.Tensor) -> tuple:
         w_mu = w[..., self.param_idxs[0]]
         y1 = nn.Tanh()(self.l1_mu(w_mu))
         y2 = nn.Tanh()(self.l2_mu(y1))
@@ -286,13 +286,13 @@ class SkewNormalNLL(ProbModelObject):
 
         return y, z, a
 
-    def forward(
+    def calc_loss(
         self,
         w: torch.Tensor,
         data: torch.Tensor,
         training_mask: torch.Tensor | None = None,
     ) -> torch.Tensor:
-        mu, sig, alpha = self.decode(w)
+        mu, sig, alpha = self.forward(w)
         if training_mask is None:
             y = mu
             z = sig
@@ -361,7 +361,7 @@ class NormalNLL(ProbModelObject):
         self.l3_sig = nn.Linear(n2, 2 * self.num_freqs[1])
         self.l4_sig = nn.Linear(2 * self.num_freqs[1], x_dim)
 
-    def decode(self, w: torch.Tensor) -> tuple:
+    def forward(self, w: torch.Tensor) -> tuple:
         w_mu = w[..., self.param_idxs[0]]
         y1 = nn.Tanh()(self.l1_mu(w_mu))
         y2 = nn.Tanh()(self.l2_mu(y1))
@@ -392,10 +392,10 @@ class NormalNLL(ProbModelObject):
         # z = 10 * nn.Softplus()(z3)
         return z3
 
-    def get_modes(self, x: torch.Tensor) -> torch.Tensor:
+    def get_modes(self, x: torch.Tensor) -> tuple:
         x1 = x[..., self.param_idxs[0]]
         x2 = x[..., self.param_idxs[1]]
-        return [self.get_modes_mu(x1), self.get_modes_sig(x2)]
+        return (self.get_modes_mu(x1), self.get_modes_sig(x2))
 
     def get_amplitudes(self) -> tuple:
         return (
@@ -403,13 +403,13 @@ class NormalNLL(ProbModelObject):
             self.l4_sig.state_dict()["weight"],
         )
 
-    def forward(
+    def calc_loss(
         self,
         w: torch.Tensor,
         data: torch.Tensor,
         training_mask: torch.Tensor | None = None,
     ) -> torch.Tensor:
-        mu, sig = self.decode(w)
+        mu, sig = self.forward(w)
         if training_mask is None:
             y = mu
             z = sig
@@ -450,7 +450,7 @@ class ConwayMaxwellPoissonNLL(ProbModelObject):
 
         self.terms = terms
 
-    def decode(self, w: torch.Tensor) -> tuple:
+    def forward(self, w: torch.Tensor) -> tuple:
         w_rate = w[..., self.param_idxs[0]]
         rate1 = nn.Tanh()(self.l1_rate(w_rate))
         rate2 = nn.Tanh()(self.l2_rate(rate1))
@@ -463,7 +463,7 @@ class ConwayMaxwellPoissonNLL(ProbModelObject):
 
         return rate, v
 
-    def forward(
+    def calc_loss(
         self,
         w: torch.Tensor,
         data: torch.Tensor,
@@ -472,7 +472,7 @@ class ConwayMaxwellPoissonNLL(ProbModelObject):
         assert (
             training_mask is None
         ), "Training masks won't help when using a CMP distribution"
-        rate, v = self.decode(w)
+        rate, v = self.forward(w)
 
         losses = -self._logCMPpmf(data, rate, v)
         avg = torch.mean(losses, dim=-1)
@@ -543,7 +543,7 @@ class GammaNLL(ProbModelObject):
         self.l2_a = nn.Linear(n, 64)
         self.l3_a = nn.Linear(64, x_dim)
 
-    def decode(self, w: torch.Tensor) -> tuple:
+    def forward(self, w: torch.Tensor) -> tuple:
         w_rate = w[..., self.param_idxs[0]]
         rate1 = nn.Tanh()(self.l1_rate(w_rate))
         rate2 = nn.Tanh()(self.l2_rate(rate1))
@@ -556,7 +556,7 @@ class GammaNLL(ProbModelObject):
 
         return rate, a
 
-    def forward(
+    def calc_loss(
         self,
         w: torch.Tensor,
         data: torch.Tensor,
@@ -565,7 +565,7 @@ class GammaNLL(ProbModelObject):
         assert (
             training_mask is None
         ), "Training masks won't help when using a Gamma distribution"
-        rate, a = self.decode(w)
+        rate, a = self.forward(w)
 
         losses = -torch.distributions.gamma.Gamma(a, rate).log_prob(data)
         avg = torch.mean(losses, dim=-1)
@@ -593,7 +593,7 @@ class PoissonNLL(ProbModelObject):
         self.l2_rate = nn.Linear(n, 64)
         self.l3_rate = nn.Linear(64, x_dim)
 
-    def decode(self, w: torch.Tensor) -> tuple:
+    def forward(self, w: torch.Tensor) -> tuple:
         w_rate = w[..., self.param_idxs[0]]
         rate1 = nn.Tanh()(self.l1_rate(w_rate))
         rate2 = nn.Tanh()(self.l2_rate(rate1))
@@ -601,7 +601,7 @@ class PoissonNLL(ProbModelObject):
 
         return (rate,)
 
-    def forward(
+    def calc_loss(
         self,
         w: torch.Tensor,
         data: torch.Tensor,
@@ -610,7 +610,7 @@ class PoissonNLL(ProbModelObject):
         assert (
             training_mask is None
         ), "Poisson distributions don't support training masks"
-        (rate,) = self.decode(w)
+        (rate,) = self.forward(w)
 
         losses = -torch.distributions.poisson.Poisson(rate).log_prob(data)
         avg = torch.mean(losses, dim=-1)
@@ -668,7 +668,7 @@ class MultiNormalNLL(ProbModelObject):
             self.mlp_sigma.state_dict()["weight"],
         )
 
-    def decode(self, x: torch.Tensor) -> tuple:
+    def forward(self, x: torch.Tensor) -> tuple:
         x = x.reshape(*x.shape[:-1], 2, -1).transpose(-2, -1)
         y = []
         for i in range(self.num_freq[0]):
@@ -691,13 +691,13 @@ class MultiNormalNLL(ProbModelObject):
         sig = 10 * nn.Softplus()(self.mlp_sigma(sig.flatten(-2)))
         return mu, sig
 
-    def forward(
+    def calc_loss(
         self,
         w: torch.Tensor,
         data: torch.Tensor,
         training_mask: torch.Tensor | None = None,
     ) -> torch.Tensor:
-        mu, sig = self.decode(w)
+        mu, sig = self.forward(w)
         if training_mask is None:
             y = mu
             z = sig

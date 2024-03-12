@@ -28,3 +28,9 @@ plotting:
   render: false
   save:
     dir: ${user_settings.project_path}/plots
+
+modes:
+  num_modes: 3
+  num_dims: 2
+  show: True
+  stochastic: False

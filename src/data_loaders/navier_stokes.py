@@ -175,12 +175,12 @@ class NSLoader(BaseDataLoader):
             time_series.append(Om.flatten())
             # Plot the solution
             # if self.plot:
-            if i % 40 == 0:
+            if i % 80 == 0:
                 self._plot(Om, t)
 
         # render
         if self.render:
-            render_env(self.T, self.render, self.dir, self.render_name)
+            render_env(self.T, self.ds, self.render, self.dir, self.render_name)
         # # save
 
         with open(self.data_path, "wb") as f:

@@ -206,7 +206,7 @@ class KoopmanProb(BaseModel):
             wt = wt[:, None] + pi_block[None]
             k = torch.cat([torch.cos(wt), torch.sin(wt)], -1)
             loss = (
-                self.model_obj(k, xt[i * batch : (i + 1) * batch, None], None)
+                self.model_obj.calc_loss(k, xt[i * batch : (i + 1) * batch, None], None)
                 .cpu()
                 .detach()
                 .numpy()
@@ -370,7 +370,7 @@ class KoopmanProb(BaseModel):
                 training_mask[batches[i]] if training_mask is not None else None
             )
 
-            batch_losses = self.model_obj(k, xt_t, batch_mask)
+            batch_losses = self.model_obj.calc_loss(k, xt_t, batch_mask)
             if self.loss_weights is not None:
                 weighted_losses = batch_losses * self.loss_weights[batches[i]]
                 loss = torch.mean(weighted_losses)
@@ -495,29 +495,21 @@ class KoopmanProb(BaseModel):
         )  # , ts_ / self.max_t], -1)
 
         if self.multi_gpu:
-            params = self.model_obj.module.decode(k)
+            params = self.model_obj.module(k)
         else:
-            params = self.model_obj.decode(k)
+            params = self.model_obj(k)
 
         return params[0].cpu().detach().numpy()
 
     def mode_decomposition(
-        self, T: int, n_modes: int, x_0: NDArray, n_dims: int = 1
-    ) -> NDArray:
+        self, T: int, x_0: NDArray
+    ) -> list:
         """
         Returns first n modes of prediction built by Koopman algorithm
         :param T: TYPE int
         prediction horizon
-        :param n_modes: TYPE int
-        number of modes to return
-        :param plot: TYPE bool
-        whether to build a plot
-        The default is False
-        :param plot_n_last: TYPE int
-        default None
-        if not None, plot only last n steps in prediction
-        :return: TYPE np.array
-        size (T, n_modes)
+
+        x0: starting point (not used)
 
         """
         t = torch.arange(T, device=self.device) + 1
@@ -533,7 +525,7 @@ class KoopmanProb(BaseModel):
         modes_all = []
         for j in range(len(modes)):
             idxs = torch.argsort(-amps[j].abs(), dim=-1)
-            modes_all.append(modes[j, idxs[:n_dims, :n_modes]])
+            modes_all.append(modes[j, idxs])
 
         return [mode.detach().numpy() for mode in modes_all]
 
@@ -685,7 +677,7 @@ class CoordinateKoopmanProb(KoopmanProb):
                 training_mask[batches[i]] if training_mask is not None else None
             )
 
-            batch_losses = self.model_obj(k, xt_t, batch_mask)
+            batch_losses = self.model_obj.calc_loss(k, xt_t, batch_mask)
             amps_params_mu = self.model_obj.mlp_mu.parameters()
             # amps_params_sig = self.model_obj.mlp_sigma.parameters()
             l1_norm = sum(
