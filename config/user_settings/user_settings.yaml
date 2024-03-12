@@ -1,0 +1,5 @@
+project_path: C:\Users\mWX1298408\Documents\koopmania
+datasets_root:  ${user_settings.project_path}/data
+results_dir: ${user_settings.project_path}/results
+hydra_root: ${user_settings.results_dir}/hydra
+hydra_dir: ${user_settings.hydra_root}/${now:%Y-%m-%d}/${now:%H-%M-%S}
