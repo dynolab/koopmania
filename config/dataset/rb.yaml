@@ -1,0 +1,12 @@
+_target_: src.data_loaders.rb_data_loader.RBLoader
+name: rb
+
+T: ${T}
+ds: ${delta_t}
+
+seed: ${seed}
+
+x_dim: 30
+sample: 30
+
+data_path: /Users/mariamitrankova/Documents/GitHub/koopmania/src/data_loaders/rb_flow.npy
